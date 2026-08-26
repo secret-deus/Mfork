@@ -78,6 +78,7 @@ export interface ProfileMeta {
   url: string | null;
   updated_at: number;
   sub: SubInfo | null;
+  interval_hours: number;
 }
 
 export interface ProfilesIndex {
@@ -94,6 +95,31 @@ export const profileDelete = (id: string) =>
   invoke<void>("profile_delete", { id });
 export const profileSelect = (id: string) =>
   invoke<string | null>("profile_select", { id });
+export const profileImportLocal = (path: string) =>
+  invoke<ProfileMeta>("profile_import_local", { path });
+export const profileSetInterval = (id: string, hours: number) =>
+  invoke<void>("profile_set_interval", { id, hours });
+export const configRegenerate = () =>
+  invoke<string | null>("config_regenerate");
+
+export interface OverrideMeta {
+  id: string;
+  name: string;
+  kind: "yaml" | "js";
+  enabled: boolean;
+}
+
+export const overridesList = () => invoke<OverrideMeta[]>("overrides_list");
+export const overrideCreate = (name: string, kind: "yaml" | "js") =>
+  invoke<OverrideMeta>("override_create", { name, kind });
+export const overrideRead = (id: string) => invoke<string>("override_read", { id });
+export const overrideWrite = (id: string, content: string) =>
+  invoke<void>("override_write", { id, content });
+export const overrideDelete = (id: string) => invoke<void>("override_delete", { id });
+export const overrideToggle = (id: string, enabled: boolean) =>
+  invoke<void>("override_toggle", { id, enabled });
+export const overrideMove = (id: string, up: boolean) =>
+  invoke<void>("override_move", { id, up });
 
 export function relativeTime(unixSecs: number): string {
   const s = Math.max(0, Math.floor(Date.now() / 1000 - unixSecs));

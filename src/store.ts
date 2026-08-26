@@ -88,6 +88,11 @@ function openStreams(
 
 let initialized = false;
 
+async function apiPatchlessReload(api: ApiInfo, path: string) {
+  const { apiPut } = await import("./lib/core");
+  await apiPut(api, "/configs?force=true", { path });
+}
+
 export const useApp = create<AppState>((set, get) => ({
   phase: "stopped",
   api: null,
@@ -149,6 +154,13 @@ export const useApp = create<AppState>((set, get) => ({
   async init() {
     if (initialized) return;
     initialized = true;
+    // auto-updated subscriptions: hot-reload the regenerated config
+    await listen<string | null>("profiles-auto-updated", (e) => {
+      const { api } = get();
+      if (e.payload && api) {
+        void apiPatchlessReload(api, e.payload).then(() => get().syncConfig());
+      }
+    });
     await listen<number | null>("core-exited", (e) => {
       closeStreams();
       set({

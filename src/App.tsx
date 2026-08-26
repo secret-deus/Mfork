@@ -4,6 +4,7 @@ import Overview from "./pages/Overview";
 import Proxies from "./pages/Proxies";
 import Profiles from "./pages/Profiles";
 import Connections from "./pages/Connections";
+import Overrides from "./pages/Overrides";
 import Rules from "./pages/Rules";
 import Logs from "./pages/Logs";
 import Settings from "./pages/Settings";
@@ -88,6 +89,8 @@ export default function App() {
           <Proxies />
         ) : page === "profiles" ? (
           <Profiles />
+        ) : page === "overrides" ? (
+          <Overrides />
         ) : page === "connections" ? (
           <Connections />
         ) : page === "rules" ? (

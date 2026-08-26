@@ -4,9 +4,50 @@ use serde::{Deserialize, Serialize};
 use serde_yaml::{Mapping, Value};
 use std::path::PathBuf;
 use std::time::Duration;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::core::CoreState;
+
+/// Periodic auto-update: refresh due subscriptions; when the active one
+/// changed and the core is running, regenerate and tell the frontend to
+/// hot-reload (event payload = config path).
+pub fn auto_update_tick(app: &AppHandle) {
+    let Ok(idx) = load_index(app) else { return };
+    let now = now_secs();
+    let mut updated_any = false;
+    let mut active_updated = false;
+    for item in &idx.items {
+        if item.url.is_some()
+            && item.interval_hours > 0
+            && now - item.updated_at >= (item.interval_hours as i64) * 3600
+        {
+            match update_by_id(app, &item.id) {
+                Ok(_) => {
+                    updated_any = true;
+                    if idx.active.as_deref() == Some(item.id.as_str()) {
+                        active_updated = true;
+                    }
+                }
+                Err(e) => {
+                    let _ = app.emit("profile-update-failed", format!("{}: {e}", item.name));
+                }
+            }
+        }
+    }
+    if updated_any {
+        let mut payload: Option<String> = None;
+        if active_updated {
+            let state = app.state::<CoreState>();
+            let api = state.api.lock().unwrap().clone();
+            if let Some(api) = api {
+                if let Ok(p) = generate_config(app, api.port, &api.secret, api.mixed_port) {
+                    payload = Some(p.to_string_lossy().to_string());
+                }
+            }
+        }
+        let _ = app.emit("profiles-auto-updated", payload);
+    }
+}
 
 #[derive(Clone, Serialize, Deserialize, Default)]
 pub struct SubInfo {
@@ -23,6 +64,9 @@ pub struct ProfileMeta {
     pub url: Option<String>,
     pub updated_at: i64,
     pub sub: Option<SubInfo>,
+    /// auto-update interval in hours; 0 = off
+    #[serde(default)]
+    pub interval_hours: u32,
 }
 
 #[derive(Clone, Serialize, Deserialize, Default)]
@@ -154,6 +198,66 @@ pub fn profile_import(app: AppHandle, url: String) -> Result<ProfileMeta, String
         url: Some(url),
         updated_at: now_secs(),
         sub,
+        interval_hours: 24,
+    };
+    let mut idx = load_index(&app)?;
+    if idx.active.is_none() {
+        idx.active = Some(id);
+    }
+    idx.items.push(meta.clone());
+    save_index(&app, &idx)?;
+    Ok(meta)
+}
+
+pub fn update_by_id(app: &AppHandle, id: &str) -> Result<ProfileMeta, String> {
+    let mut idx = load_index(app)?;
+    let item = idx
+        .items
+        .iter_mut()
+        .find(|p| p.id == id)
+        .ok_or("订阅不存在")?;
+    let url = item.url.clone().ok_or("本地配置无法更新")?;
+    let (body, sub, _) = download(&url)?;
+    std::fs::write(profile_path(app, id)?, &body).map_err(|e| e.to_string())?;
+    item.updated_at = now_secs();
+    if sub.is_some() {
+        item.sub = sub;
+    }
+    let meta = item.clone();
+    save_index(app, &idx)?;
+    Ok(meta)
+}
+
+#[tauri::command]
+pub fn profile_update(app: AppHandle, id: String) -> Result<ProfileMeta, String> {
+    update_by_id(&app, &id)
+}
+
+#[tauri::command]
+pub fn profile_import_local(app: AppHandle, path: String) -> Result<ProfileMeta, String> {
+    let body = std::fs::read_to_string(&path).map_err(|e| format!("读取失败: {e}"))?;
+    let body = body.trim_start_matches('\u{feff}').to_string();
+    let doc: Value = serde_yaml::from_str(&body).map_err(|_| "内容不是有效的 YAML".to_string())?;
+    let map = doc.as_mapping().ok_or("内容不是有效的 Clash 配置")?;
+    if !map.contains_key("proxies") && !map.contains_key("proxy-providers") {
+        return Err("内容缺少 proxies / proxy-providers，不像 Clash 配置".into());
+    }
+    let id: String = (0..8)
+        .map(|_| char::from_digit(fastrand::u32(0..16), 16).unwrap())
+        .collect();
+    std::fs::write(profile_path(&app, &id)?, &body).map_err(|e| e.to_string())?;
+    let name = std::path::Path::new(&path)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("本地配置")
+        .to_string();
+    let meta = ProfileMeta {
+        id: id.clone(),
+        name,
+        url: None,
+        updated_at: now_secs(),
+        sub: None,
+        interval_hours: 0,
     };
     let mut idx = load_index(&app)?;
     if idx.active.is_none() {
@@ -165,23 +269,32 @@ pub fn profile_import(app: AppHandle, url: String) -> Result<ProfileMeta, String
 }
 
 #[tauri::command]
-pub fn profile_update(app: AppHandle, id: String) -> Result<ProfileMeta, String> {
+pub fn profile_set_interval(app: AppHandle, id: String, hours: u32) -> Result<(), String> {
     let mut idx = load_index(&app)?;
     let item = idx
         .items
         .iter_mut()
         .find(|p| p.id == id)
         .ok_or("订阅不存在")?;
-    let url = item.url.clone().ok_or("本地配置无法更新")?;
-    let (body, sub, _) = download(&url)?;
-    std::fs::write(profile_path(&app, &id)?, &body).map_err(|e| e.to_string())?;
-    item.updated_at = now_secs();
-    if sub.is_some() {
-        item.sub = sub;
+    item.interval_hours = hours;
+    save_index(&app, &idx)
+}
+
+/// Regenerate the kernel config with current settings; returns the path
+/// for the frontend to hot-reload, or None when the core is not running.
+#[tauri::command]
+pub fn config_regenerate(
+    app: AppHandle,
+    state: State<'_, CoreState>,
+) -> Result<Option<String>, String> {
+    let api = state.api.lock().unwrap().clone();
+    match api {
+        Some(api) => {
+            let path = generate_config(&app, api.port, &api.secret, api.mixed_port)?;
+            Ok(Some(path.to_string_lossy().to_string()))
+        }
+        None => Ok(None),
     }
-    let meta = item.clone();
-    save_index(&app, &idx)?;
-    Ok(meta)
 }
 
 #[tauri::command]
@@ -249,6 +362,9 @@ pub fn generate_config(
             );
             m
         });
+
+    // overrides run on the raw profile, before GUI-managed fields
+    doc = crate::override_::apply_all(app, doc)?;
 
     // strip fields the GUI owns (or that must not come from a subscription)
     for key in [

@@ -24,8 +24,7 @@ pnpm tauri dev
 ## 當前進度
 
 - [x] M1 骨架與內核閉環：Tauri 腳手架、內核啟停守護、REST API 連通、概覽頁（實時流量/內存/連接數、模式切換）；全部頁面骨架（代理/連接/規則/日誌接真實 API）；連接監控雙視圖（socket 級逐條連接 + 應用級按進程聚合，`find-process-mode: always`）
-- [x] M2 訂閱系統（核心）：訂閱下載（UA clash.meta、subscription-userinfo 流量頭）、增刪改/更新/切換、配置生成管線（訂閱 + GUI 托管字段合併 → config.yaml → PUT /configs 熱重載）
-- [ ] M2 餘項：覆寫合併（yaml/js）、定時自動更新、本地文件導入、Monaco 原始編輯
+- [x] M2 訂閱系統：訂閱下載（UA clash.meta、subscription-userinfo 流量頭）、增刪改/更新/切換、本地文件導入、按訂閱設定的定時自動更新；覆寫系統（YAML 深合併含 prepend-/append- 語義 + 內嵌 JS 引擎跑 `main(config)` 變換，Monaco 編輯器，保存即熱重載）；配置生成管線（訂閱 → 覆寫鏈 → GUI 托管字段 → config.yaml → PUT /configs 熱重載）
 - [ ] M3 代理頁與系統集成：策略組/測速、系統代理、托盤、開機自啟
 - [ ] M4 監控：連接、日誌、規則頁；節點地圖
 - [ ] M5 TUN 與提權服務

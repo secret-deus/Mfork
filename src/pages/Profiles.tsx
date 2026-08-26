@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
 import { useApp } from "../store";
 import {
   ProfileMeta,
@@ -7,11 +8,21 @@ import {
   formatBytes,
   profileDelete,
   profileImport,
+  profileImportLocal,
   profileSelect,
+  profileSetInterval,
   profileUpdate,
   profilesList,
   relativeTime,
 } from "../lib/core";
+
+const INTERVALS = [
+  { v: 0, label: "手动" },
+  { v: 6, label: "6h" },
+  { v: 12, label: "12h" },
+  { v: 24, label: "24h" },
+  { v: 72, label: "72h" },
+];
 
 function expireText(expire: number): string {
   if (!expire) return "长期有效";
@@ -83,7 +94,26 @@ export default function Profiles() {
     <div className="flex h-full min-w-0 flex-col px-14 pb-8 pt-13">
       <div className="flex items-center justify-between">
         <div className="cap">Mfork · 订阅 Profiles</div>
-        <span className="cap2">本地文件导入 · 稍后支持</span>
+        <button
+          onClick={() =>
+            void run("import", async () => {
+              const path = await open({
+                multiple: false,
+                filters: [{ name: "Clash 配置", extensions: ["yaml", "yml"] }],
+              });
+              if (typeof path !== "string") return;
+              const meta = await profileImportLocal(path);
+              const idx = await profilesList();
+              if (idx.active === meta.id) {
+                await applyConfig(await profileSelect(meta.id));
+              }
+            })
+          }
+          disabled={busy !== null}
+          className="text-xs text-mut hover:text-fg disabled:opacity-40"
+        >
+          打开本地文件
+        </button>
       </div>
 
       <div className="mt-7 flex items-center gap-3 border-b border-line-strong pb-3">
@@ -147,6 +177,26 @@ export default function Profiles() {
                     )}
                   </div>
                   <div className="flex items-center gap-6">
+                    {p.url ? (
+                      <div className="flex items-center gap-2" title="自动更新间隔">
+                        <span className="cap2">自动更新</span>
+                        {INTERVALS.map((it) => (
+                          <button
+                            key={it.v}
+                            onClick={() =>
+                              void run(p.id, async () => profileSetInterval(p.id, it.v))
+                            }
+                            className={`text-[10px] tracking-[1px] ${
+                              p.interval_hours === it.v
+                                ? "text-accent"
+                                : "text-dim hover:text-mut"
+                            }`}
+                          >
+                            {it.label}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
                     {p.url ? (
                       <button
                         onClick={() => void doUpdate(p)}
