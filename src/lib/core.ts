@@ -102,6 +102,23 @@ export const profileSetInterval = (id: string, hours: number) =>
 export const configRegenerate = () =>
   invoke<string | null>("config_regenerate");
 
+export interface AppSettings {
+  system_proxy: boolean;
+  proxy_bypass: string;
+  silent_start: boolean;
+}
+
+export const settingsGet = () => invoke<AppSettings>("settings_get");
+export const settingsSet = (settings: AppSettings) =>
+  invoke<void>("settings_set", { settings });
+export const systemProxySet = (enable: boolean) =>
+  invoke<void>("system_proxy_set", { enable });
+export const autostartGet = () => invoke<boolean>("autostart_get");
+export const autostartSet = (enable: boolean) =>
+  invoke<void>("autostart_set", { enable });
+export const traySync = (mode: string | null) =>
+  invoke<void>("tray_sync", { mode });
+
 export interface OverrideMeta {
   id: string;
   name: string;

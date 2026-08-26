@@ -17,12 +17,48 @@ function lastDelay(n: ProxyNode | undefined): number | undefined {
   return h && h.length > 0 ? h[h.length - 1].delay : undefined;
 }
 
+type SortBy = "default" | "delay" | "name";
+
+const SORTS: { key: SortBy; label: string }[] = [
+  { key: "default", label: "默认" },
+  { key: "delay", label: "延迟" },
+  { key: "name", label: "名称" },
+];
+
 export default function Proxies() {
   const { api, phase } = useApp();
   const [groups, setGroups] = useState<ProxyGroup[]>([]);
   const [nodes, setNodes] = useState<Record<string, ProxyNode>>({});
   const [expanded, setExpanded] = useState<string | null>(null);
   const [testing, setTesting] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<SortBy>("default");
+  const [hideUnavail, setHideUnavail] = useState(false);
+
+  const visibleNodes = useCallback(
+    (g: ProxyGroup): string[] => {
+      let names = [...g.all];
+      if (hideUnavail) {
+        // hide only nodes whose last test failed; untested nodes stay
+        names = names.filter((name) => {
+          if (name === g.now) return true;
+          const h = nodes[name]?.history;
+          if (!h || h.length === 0) return true;
+          return h[h.length - 1].delay > 0;
+        });
+      }
+      if (sortBy === "delay") {
+        names.sort((a, b) => {
+          const da = lastDelay(nodes[a]);
+          const db = lastDelay(nodes[b]);
+          return (da && da > 0 ? da : Infinity) - (db && db > 0 ? db : Infinity);
+        });
+      } else if (sortBy === "name") {
+        names.sort((a, b) => a.localeCompare(b));
+      }
+      return names;
+    },
+    [nodes, sortBy, hideUnavail],
+  );
 
   const refresh = useCallback(async () => {
     if (!api) return;
@@ -67,13 +103,39 @@ export default function Proxies() {
     <div className="flex h-full min-w-0 flex-col px-14 pb-8 pt-13">
       <div className="flex items-center justify-between">
         <div className="cap">Mfork · 代理 Proxies</div>
-        <button
-          onClick={() => void refresh()}
-          className="text-xs text-mut hover:text-fg"
-          disabled={phase !== "running"}
-        >
-          刷新
-        </button>
+        <div className="flex items-center gap-5">
+          <div className="flex items-center gap-3">
+            <span className="cap2">排序</span>
+            {SORTS.map((s) => (
+              <button
+                key={s.key}
+                onClick={() => setSortBy(s.key)}
+                className={`text-xs transition-colors ${
+                  sortBy === s.key ? "text-fg" : "text-dim hover:text-mut"
+                }`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+          <div className="h-3.5 w-px bg-line" />
+          <button
+            onClick={() => setHideUnavail((v) => !v)}
+            className={`text-xs transition-colors ${
+              hideUnavail ? "text-fg" : "text-dim hover:text-mut"
+            }`}
+          >
+            隐藏不可用
+          </button>
+          <div className="h-3.5 w-px bg-line" />
+          <button
+            onClick={() => void refresh()}
+            className="text-xs text-mut hover:text-fg"
+            disabled={phase !== "running"}
+          >
+            刷新
+          </button>
+        </div>
       </div>
 
       <div className="mt-6 min-h-0 flex-1 overflow-y-auto">
@@ -123,7 +185,7 @@ export default function Proxies() {
                 </div>
                 {open ? (
                   <div className="grid grid-cols-3 gap-x-12 pb-4">
-                    {g.all.map((name) => {
+                    {visibleNodes(g).map((name) => {
                       const n = nodes[name];
                       const d = lastDelay(n);
                       const selected = g.now === name;

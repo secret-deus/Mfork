@@ -153,6 +153,11 @@ pub fn core_start(app: AppHandle, state: State<'_, CoreState>) -> Result<ApiInfo
     };
     *state.api.lock().unwrap() = Some(info.clone());
 
+    // the mixed port changes on every start: re-point the OS proxy at it
+    if let Err(e) = crate::system::sync_system_proxy(&app) {
+        let _ = app.emit("sys-proxy-error", e);
+    }
+
     // watcher: notify the frontend if the process dies
     let app2 = app.clone();
     std::thread::spawn(move || loop {
@@ -165,6 +170,7 @@ pub fn core_start(app: AppHandle, state: State<'_, CoreState>) -> Result<ApiInfo
                     *guard = None;
                     *state.api.lock().unwrap() = None;
                     drop(guard);
+                    crate::system::clear_if_enabled(&app2);
                     let _ = app2.emit("core-exited", status.code());
                     break;
                 }
@@ -192,8 +198,12 @@ fn core_stop_inner(state: &State<'_, CoreState>) -> bool {
 }
 
 #[tauri::command]
-pub fn core_stop(state: State<'_, CoreState>) -> bool {
-    core_stop_inner(&state)
+pub fn core_stop(app: AppHandle, state: State<'_, CoreState>) -> bool {
+    let stopped = core_stop_inner(&state);
+    // no core to point at any more — turn the OS proxy off (setting kept,
+    // so the next start re-applies it)
+    crate::system::clear_if_enabled(&app);
+    stopped
 }
 
 #[tauri::command]

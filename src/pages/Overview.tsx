@@ -39,6 +39,8 @@ export default function Overview() {
     start,
     stop,
     setMode,
+    settings,
+    setSystemProxy,
   } = useApp();
 
   const dl = formatRate(down);
@@ -110,6 +112,19 @@ export default function Overview() {
             {m.label}
           </button>
         ))}
+        <div className="h-4 w-px bg-line" />
+        <button
+          onClick={() => void setSystemProxy(!(settings?.system_proxy ?? false))}
+          disabled={!settings}
+          className="flex items-center gap-2 pb-1.5 text-[13px] text-dim transition-colors hover:text-mut disabled:opacity-40"
+        >
+          <span
+            className={`block h-1.5 w-1.5 rounded-full ${
+              settings?.system_proxy ? "bg-ok" : "bg-[#2a2d34]"
+            }`}
+          />
+          <span className={settings?.system_proxy ? "text-fg" : undefined}>系统代理</span>
+        </button>
         <div className="h-4 w-px bg-line" />
         {phase === "running" ? (
           <button onClick={stop} className="text-xs text-mut hover:text-fg">

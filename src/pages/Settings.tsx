@@ -1,5 +1,31 @@
 import { useApp } from "../store";
 
+function Toggle({
+  on,
+  onChange,
+  disabled,
+}: {
+  on: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      onClick={() => onChange(!on)}
+      disabled={disabled}
+      className={`relative h-[18px] w-[34px] shrink-0 rounded-full transition-colors ${
+        on ? "bg-accent" : "bg-[#23262d]"
+      } disabled:opacity-40`}
+    >
+      <span
+        className={`absolute top-[2px] block h-[14px] w-[14px] rounded-full bg-[#e7e9ec] transition-all ${
+          on ? "left-[18px]" : "left-[2px]"
+        }`}
+      />
+    </button>
+  );
+}
+
 function Row({
   label,
   sub,
@@ -40,7 +66,18 @@ const Val = ({ children }: { children: React.ReactNode }) => (
 const Soon = ({ m }: { m: string }) => <span className="cap2">{m}</span>;
 
 export default function Settings() {
-  const { phase, api, version, start, stop } = useApp();
+  const {
+    phase,
+    api,
+    version,
+    start,
+    stop,
+    settings,
+    autostart,
+    setSystemProxy,
+    updateSettings,
+    setAutostart,
+  } = useApp();
 
   return (
     <div className="flex h-full min-w-0 flex-col overflow-y-auto px-14 pb-8 pt-13">
@@ -97,8 +134,59 @@ export default function Settings() {
         </Sect>
 
         <Sect title="系统">
-          <Row label="系统代理" sub="接管系统 HTTP/SOCKS 代理设置" right={<Soon m="M3" />} />
-          <Row label="开机自启 · 静默启动 · 托盘" right={<Soon m="M3" />} last />
+          <Row
+            label="系统代理"
+            sub={
+              settings?.system_proxy && api
+                ? `已指向 127.0.0.1:${api.mixed_port}`
+                : "接管系统 HTTP/SOCKS 代理设置"
+            }
+            right={
+              <Toggle
+                on={settings?.system_proxy ?? false}
+                onChange={(v) => void setSystemProxy(v)}
+                disabled={!settings}
+              />
+            }
+          />
+          <Row
+            label="代理绕过"
+            sub="不经过代理的地址列表"
+            right={
+              <input
+                key={settings?.proxy_bypass ?? ""}
+                defaultValue={settings?.proxy_bypass ?? ""}
+                onBlur={(e) => {
+                  if (settings && e.target.value !== settings.proxy_bypass)
+                    void updateSettings({ proxy_bypass: e.target.value });
+                }}
+                disabled={!settings}
+                spellCheck={false}
+                className="w-56 border-b border-[#23262d] bg-transparent pb-0.5 text-right font-sg text-[11.5px] text-[#9aa0a8] outline-none focus:border-accent"
+              />
+            }
+          />
+          <Row
+            label="开机自启"
+            right={<Toggle on={autostart} onChange={(v) => void setAutostart(v)} />}
+          />
+          <Row
+            label="静默启动"
+            sub="启动时不显示窗口，仅驻留托盘"
+            right={
+              <Toggle
+                on={settings?.silent_start ?? false}
+                onChange={(v) => void updateSettings({ silent_start: v })}
+                disabled={!settings}
+              />
+            }
+          />
+          <Row
+            label="关闭主窗口"
+            sub="隐藏到托盘，从托盘菜单退出"
+            right={<Val>托盘</Val>}
+            last
+          />
         </Sect>
 
         <Sect title="TUN 模式">

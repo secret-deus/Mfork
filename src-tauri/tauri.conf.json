@@ -12,7 +12,9 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Mfork",
+        "visible": false,
         "width": 1280,
         "height": 800,
         "minWidth": 1024,
