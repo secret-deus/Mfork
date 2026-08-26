@@ -394,6 +394,42 @@ pub fn generate_config(
     );
     doc.insert("secret".into(), secret.into());
     doc.insert("find-process-mode".into(), "always".into());
+
+    // GUI-managed TUN / DNS (settings page); the raw profile's tun block is
+    // always stripped above, its dns block survives unless the user opts in
+    let s = crate::settings::load(app);
+    if s.tun.enable {
+        let mut tun = Mapping::new();
+        tun.insert("enable".into(), true.into());
+        tun.insert("stack".into(), s.tun.stack.as_str().into());
+        tun.insert("auto-route".into(), s.tun.auto_route.into());
+        tun.insert("strict-route".into(), s.tun.strict_route.into());
+        tun.insert("mtu".into(), s.tun.mtu.into());
+        if s.tun.dns_hijack {
+            tun.insert(
+                "dns-hijack".into(),
+                Value::Sequence(vec![Value::String("any:53".into())]),
+            );
+        }
+        doc.insert("tun".into(), Value::Mapping(tun));
+    }
+    if s.dns.enable {
+        let list = |v: &[String]| {
+            Value::Sequence(v.iter().map(|x| Value::String(x.clone())).collect())
+        };
+        let mut dns = Mapping::new();
+        dns.insert("enable".into(), true.into());
+        dns.insert("enhanced-mode".into(), s.dns.enhanced_mode.as_str().into());
+        if s.dns.enhanced_mode == "fake-ip" {
+            dns.insert("fake-ip-range".into(), "198.18.0.1/16".into());
+        }
+        dns.insert("nameserver".into(), list(&s.dns.nameserver));
+        if !s.dns.fallback.is_empty() {
+            dns.insert("fallback".into(), list(&s.dns.fallback));
+        }
+        doc.insert("dns".into(), Value::Mapping(dns));
+    }
+
     if !doc.contains_key("mode") {
         doc.insert("mode".into(), "rule".into());
     }

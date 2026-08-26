@@ -1,0 +1,21 @@
+[package]
+name = "mfork-service"
+version = "0.1.0"
+edition = "2021"
+description = "Mfork elevated service: starts the mihomo core as SYSTEM for TUN mode"
+
+[[bin]]
+name = "mfork-service"
+path = "src/main.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+fastrand = "2"
+
+[target.'cfg(windows)'.dependencies]
+windows-service = "0.7"
+
+[profile.release]
+opt-level = "s"
+strip = true

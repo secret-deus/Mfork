@@ -1,6 +1,7 @@
 mod core;
 mod override_;
 mod profile;
+mod service;
 mod settings;
 mod system;
 mod tray;
@@ -66,6 +67,9 @@ pub fn run() {
             system::system_proxy_set,
             system::autostart_get,
             system::autostart_set,
+            service::service_status,
+            service::service_install,
+            service::service_uninstall,
             tray::tray_sync
         ])
         .build(tauri::generate_context!())

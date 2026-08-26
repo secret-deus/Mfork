@@ -48,3 +48,18 @@ if (ext === "gz") {
 if (os !== "windows") chmodSync(dest, 0o755);
 writeFileSync(join(destDir, "VERSION"), release.tag_name + "\n");
 console.log(`OK: ${dest} (${release.tag_name})`);
+
+// TUN mode on Windows needs wintun.dll next to mihomo.exe
+if (os === "windows") {
+  const WINTUN = "https://www.wintun.net/builds/wintun-0.14.1.zip";
+  const dllArch = arch === "arm64" ? "arm64" : "amd64";
+  console.log(`Downloading wintun.dll (${dllArch})...`);
+  const wbuf = Buffer.from(await (await fetch(WINTUN)).arrayBuffer());
+  const tmp = mkdtempSync(join(tmpdir(), "wintun-"));
+  const zip = join(tmp, "wintun.zip");
+  writeFileSync(zip, wbuf);
+  execFileSync("tar", ["-xf", zip, "-C", tmp]);
+  copyFileSync(join(tmp, "wintun", "bin", dllArch, "wintun.dll"), join(destDir, "wintun.dll"));
+  rmSync(tmp, { recursive: true, force: true });
+  console.log(`OK: ${join(destDir, "wintun.dll")}`);
+}

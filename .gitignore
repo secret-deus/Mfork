@@ -23,5 +23,9 @@ dist-ssr
 *.sln
 *.sw?
 
-# bundled core binary (downloaded via scripts/fetch-core.ps1)
+# bundled core binary (downloaded via scripts/fetch-core.mjs)
 src-tauri/resources/mihomo/
+
+# elevated service build output (scripts/build-service.mjs)
+service/target/
+src-tauri/resources/service/

@@ -20,6 +20,8 @@ pub struct ApiInfo {
 pub struct CoreState {
     pub child: Mutex<Option<Child>>,
     pub api: Mutex<Option<ApiInfo>>,
+    /// core was started through the elevated service (TUN mode)
+    pub via_service: Mutex<bool>,
 }
 
 #[derive(Clone, Serialize)]
@@ -45,7 +47,7 @@ const CORE_BIN: &str = if cfg!(windows) { "mihomo.exe" } else { "mihomo" };
 
 /// Locate the bundled mihomo binary: bundle resources first, then the
 /// source tree (dev builds where resources are not yet copied).
-fn core_binary(app: &AppHandle) -> Result<PathBuf, String> {
+pub fn core_binary(app: &AppHandle) -> Result<PathBuf, String> {
     if let Ok(dir) = app.path().resource_dir() {
         let p = dir.join("resources").join("mihomo").join(CORE_BIN);
         if p.exists() {
@@ -76,17 +78,23 @@ fn data_dir(app: &AppHandle) -> Result<PathBuf, String> {
 
 #[tauri::command]
 pub fn core_start(app: AppHandle, state: State<'_, CoreState>) -> Result<ApiInfo, String> {
+    let use_service = crate::settings::load(&app).tun.enable;
+    if use_service && !crate::service::ping(&app) {
+        return Err("TUN 模式需要系统服务：请先在设置页安装 Mfork 服务".into());
+    }
+
     // hold the lock through spawn so two concurrent calls cannot both start
     let mut child_guard = state.child.lock().unwrap();
-    if let Some(child) = child_guard.as_mut() {
-        match child.try_wait() {
-            Ok(None) => {
-                // already running
-                return state.api.lock().unwrap().clone().ok_or("no api info".into());
-            }
-            _ => {
-                *child_guard = None;
-            }
+    let already = if *state.via_service.lock().unwrap() {
+        crate::service::core_running(&app)
+    } else if let Some(child) = child_guard.as_mut() {
+        matches!(child.try_wait(), Ok(None))
+    } else {
+        false
+    };
+    if already {
+        if let Some(info) = state.api.lock().unwrap().clone() {
+            return Ok(info);
         }
     }
 
@@ -98,27 +106,47 @@ pub fn core_start(app: AppHandle, state: State<'_, CoreState>) -> Result<ApiInfo
 
     let config_path = crate::profile::generate_config(&app, api_port, &secret, mixed_port)?;
 
-    let mut cmd = Command::new(&bin);
-    cmd.arg("-d")
-        .arg(&dir)
-        .arg("-f")
-        .arg(&config_path)
-        .stdout(std::process::Stdio::from(
-            std::fs::File::create(dir.join("core.log")).map_err(|e| e.to_string())?,
-        ))
-        .stderr(std::process::Stdio::from(
-            std::fs::File::create(dir.join("core.err.log")).map_err(|e| e.to_string())?,
-        ));
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        cmd.creation_flags(CREATE_NO_WINDOW);
+    // clean up whatever ran before, regardless of mode
+    if let Some(mut c) = child_guard.take() {
+        let _ = c.kill();
+        let _ = c.wait();
+    }
+    if crate::service::ping(&app) && crate::service::core_running(&app) {
+        crate::service::stop_core(&app);
     }
 
-    let child = cmd.spawn().map_err(|e| format!("spawn mihomo failed: {e}"))?;
-    let pid = child.id();
-    *child_guard = Some(child);
+    let pid;
+    if use_service {
+        pid = crate::service::start_core(
+            &app,
+            &config_path.to_string_lossy(),
+            &dir.to_string_lossy(),
+        )?;
+        *state.via_service.lock().unwrap() = true;
+    } else {
+        let mut cmd = Command::new(&bin);
+        cmd.arg("-d")
+            .arg(&dir)
+            .arg("-f")
+            .arg(&config_path)
+            .stdout(std::process::Stdio::from(
+                std::fs::File::create(dir.join("core.log")).map_err(|e| e.to_string())?,
+            ))
+            .stderr(std::process::Stdio::from(
+                std::fs::File::create(dir.join("core.err.log")).map_err(|e| e.to_string())?,
+            ));
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+
+        let child = cmd.spawn().map_err(|e| format!("spawn mihomo failed: {e}"))?;
+        pid = child.id();
+        *child_guard = Some(child);
+        *state.via_service.lock().unwrap() = false;
+    }
     drop(child_guard);
 
     // wait until the external controller answers (max ~8s)
@@ -133,7 +161,7 @@ pub fn core_start(app: AppHandle, state: State<'_, CoreState>) -> Result<ApiInfo
             break;
         }
         if Instant::now() > deadline {
-            let _ = core_stop_inner(&state);
+            let _ = core_stop_inner(&app, &state);
             return Err(format!(
                 "mihomo (pid {pid}) did not open the API port within 8s — see core.err.log in {}",
                 dir.display()
@@ -158,48 +186,75 @@ pub fn core_start(app: AppHandle, state: State<'_, CoreState>) -> Result<ApiInfo
         let _ = app.emit("sys-proxy-error", e);
     }
 
-    // watcher: notify the frontend if the process dies
+    // watcher: notify the frontend if the core dies
     let app2 = app.clone();
-    std::thread::spawn(move || loop {
-        std::thread::sleep(Duration::from_millis(800));
-        let state = app2.state::<CoreState>();
-        let mut guard = state.child.lock().unwrap();
-        match guard.as_mut() {
-            Some(c) => match c.try_wait() {
-                Ok(Some(status)) => {
-                    *guard = None;
-                    *state.api.lock().unwrap() = None;
-                    drop(guard);
-                    crate::system::clear_if_enabled(&app2);
-                    let _ = app2.emit("core-exited", status.code());
-                    break;
-                }
-                Ok(None) => {}
-                Err(_) => break,
-            },
-            None => break, // stopped deliberately
-        }
-    });
+    if use_service {
+        std::thread::spawn(move || loop {
+            std::thread::sleep(Duration::from_secs(2));
+            let state = app2.state::<CoreState>();
+            if !*state.via_service.lock().unwrap() {
+                break; // switched mode or stopped deliberately
+            }
+            if state.api.lock().unwrap().is_none() {
+                break;
+            }
+            if !crate::service::core_running(&app2) {
+                *state.api.lock().unwrap() = None;
+                *state.via_service.lock().unwrap() = false;
+                crate::system::clear_if_enabled(&app2);
+                let _ = app2.emit("core-exited", None::<i32>);
+                break;
+            }
+        });
+    } else {
+        std::thread::spawn(move || loop {
+            std::thread::sleep(Duration::from_millis(800));
+            let state = app2.state::<CoreState>();
+            let mut guard = state.child.lock().unwrap();
+            match guard.as_mut() {
+                Some(c) => match c.try_wait() {
+                    Ok(Some(status)) => {
+                        *guard = None;
+                        *state.api.lock().unwrap() = None;
+                        drop(guard);
+                        crate::system::clear_if_enabled(&app2);
+                        let _ = app2.emit("core-exited", status.code());
+                        break;
+                    }
+                    Ok(None) => {}
+                    Err(_) => break,
+                },
+                None => break, // stopped deliberately
+            }
+        });
+    }
 
     Ok(info)
 }
 
-fn core_stop_inner(state: &State<'_, CoreState>) -> bool {
+fn core_stop_inner(app: &AppHandle, state: &State<'_, CoreState>) -> bool {
+    let via = {
+        let mut v = state.via_service.lock().unwrap();
+        std::mem::take(&mut *v)
+    };
+    let mut stopped = false;
+    if via {
+        crate::service::stop_core(app);
+        stopped = true;
+    }
     let mut guard = state.child.lock().unwrap();
-    let stopped = if let Some(mut child) = guard.take() {
+    if let Some(mut child) = guard.take() {
         let _ = child.kill();
         let _ = child.wait();
-        true
-    } else {
-        false
-    };
+        stopped = true;
+    }
     *state.api.lock().unwrap() = None;
     stopped
 }
 
 #[tauri::command]
 pub fn core_stop(app: AppHandle, state: State<'_, CoreState>) -> bool {
-    let stopped = core_stop_inner(&state);
+    let stopped = core_stop_inner(&app, &state);
     // no core to point at any more — turn the OS proxy off (setting kept,
     // so the next start re-applies it)
     crate::system::clear_if_enabled(&app);
@@ -226,8 +281,13 @@ pub fn core_status(state: State<'_, CoreState>) -> CoreStatus {
 }
 
 /// Kill the core when the app exits so no orphan process is left behind.
+/// A service-managed core is stopped too: with the GUI gone nobody would
+/// manage the TUN takeover.
 pub fn kill_on_exit(app: &AppHandle) {
     let state = app.state::<CoreState>();
+    if std::mem::take(&mut *state.via_service.lock().unwrap()) {
+        crate::service::stop_core(app);
+    }
     let mut guard = state.child.lock().unwrap();
     if let Some(mut child) = guard.take() {
         let _ = child.kill();

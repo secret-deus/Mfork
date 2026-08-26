@@ -1,4 +1,12 @@
+import { useEffect, useState } from "react";
 import { useApp } from "../store";
+import {
+  AppSettings,
+  ServiceStatus,
+  serviceInstall,
+  serviceStatus,
+  serviceUninstall,
+} from "../lib/core";
 
 function Toggle({
   on,
@@ -65,6 +73,33 @@ const Val = ({ children }: { children: React.ReactNode }) => (
 
 const Soon = ({ m }: { m: string }) => <span className="cap2">{m}</span>;
 
+function Sel({
+  value,
+  options,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={disabled}
+      className="border-b border-[#23262d] bg-transparent pb-0.5 text-right font-sg text-[12px] text-[#9aa0a8] outline-none focus:border-accent disabled:opacity-40"
+    >
+      {options.map((o) => (
+        <option key={o.value} value={o.value} className="bg-[#0b0c0f]">
+          {o.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 export default function Settings() {
   const {
     phase,
@@ -78,6 +113,39 @@ export default function Settings() {
     updateSettings,
     setAutostart,
   } = useApp();
+
+  const [svc, setSvc] = useState<ServiceStatus | null>(null);
+  const [svcBusy, setSvcBusy] = useState(false);
+  const [svcError, setSvcError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void serviceStatus().then(setSvc);
+  }, []);
+
+  // TUN / DNS changes need a core restart to take effect
+  const applyAndRestart = async (patch: Partial<AppSettings>) => {
+    await updateSettings(patch);
+    if (phase === "running") {
+      await stop();
+      await start();
+    }
+  };
+
+  const svcAction = async (action: () => Promise<void>) => {
+    setSvcBusy(true);
+    setSvcError(null);
+    try {
+      await action();
+    } catch (e) {
+      setSvcError(String(e));
+    } finally {
+      setSvcBusy(false);
+      setSvc(await serviceStatus());
+    }
+  };
+
+  const tun = settings?.tun;
+  const dns = settings?.dns;
 
   return (
     <div className="flex h-full min-w-0 flex-col overflow-y-auto px-14 pb-8 pt-13">
@@ -190,7 +258,156 @@ export default function Settings() {
         </Sect>
 
         <Sect title="TUN 模式">
-          <Row label="启用 TUN" sub="虚拟网卡接管全局流量，需系统服务" right={<Soon m="M5" />} last />
+          <Row
+            label="系统服务"
+            sub={
+              svcError ??
+              (svc?.reachable
+                ? "运行中 · 内核可以 SYSTEM 权限启动"
+                : svc?.installed
+                  ? "已安装但未响应"
+                  : "未安装 · TUN 需要提权服务（安装时弹出一次 UAC）")
+            }
+            right={
+              <div className="flex gap-4">
+                {svc?.installed ? (
+                  <button
+                    onClick={() => void svcAction(serviceUninstall)}
+                    disabled={svcBusy}
+                    className="text-xs text-mut hover:text-err disabled:opacity-50"
+                  >
+                    {svcBusy ? "处理中…" : "卸载"}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => void svcAction(serviceInstall)}
+                    disabled={svcBusy}
+                    className="text-xs text-accent hover:text-fg disabled:opacity-50"
+                  >
+                    {svcBusy ? "等待授权…" : "安装服务"}
+                  </button>
+                )}
+              </div>
+            }
+          />
+          <Row
+            label="启用 TUN"
+            sub={
+              svc?.reachable
+                ? "虚拟网卡接管全局流量；与其他代理客户端的 TUN/系统代理互斥"
+                : "需先安装系统服务"
+            }
+            right={
+              <Toggle
+                on={tun?.enable ?? false}
+                onChange={(v) => {
+                  if (tun) void applyAndRestart({ tun: { ...tun, enable: v } });
+                }}
+                disabled={!tun || (!svc?.reachable && !tun.enable)}
+              />
+            }
+          />
+          <Row
+            label="协议栈"
+            right={
+              <Sel
+                value={tun?.stack ?? "mixed"}
+                options={[
+                  { value: "mixed", label: "Mixed" },
+                  { value: "gvisor", label: "gVisor" },
+                  { value: "system", label: "System" },
+                ]}
+                onChange={(v) => {
+                  if (tun) void applyAndRestart({ tun: { ...tun, stack: v as typeof tun.stack } });
+                }}
+                disabled={!tun}
+              />
+            }
+          />
+          <Row
+            label="严格路由"
+            right={
+              <Toggle
+                on={tun?.strict_route ?? true}
+                onChange={(v) => {
+                  if (tun) void applyAndRestart({ tun: { ...tun, strict_route: v } });
+                }}
+                disabled={!tun}
+              />
+            }
+          />
+          <Row
+            label="DNS 劫持"
+            sub="接管发往任意 53 端口的查询"
+            right={
+              <Toggle
+                on={tun?.dns_hijack ?? true}
+                onChange={(v) => {
+                  if (tun) void applyAndRestart({ tun: { ...tun, dns_hijack: v } });
+                }}
+                disabled={!tun}
+              />
+            }
+            last
+          />
+        </Sect>
+
+        <Sect title="DNS">
+          <Row
+            label="接管 DNS"
+            sub="关闭时沿用订阅自带的 dns 配置"
+            right={
+              <Toggle
+                on={dns?.enable ?? false}
+                onChange={(v) => {
+                  if (dns) void applyAndRestart({ dns: { ...dns, enable: v } });
+                }}
+                disabled={!dns}
+              />
+            }
+          />
+          <Row
+            label="模式"
+            right={
+              <Sel
+                value={dns?.enhanced_mode ?? "fake-ip"}
+                options={[
+                  { value: "fake-ip", label: "Fake-IP" },
+                  { value: "redir-host", label: "Redir-Host" },
+                ]}
+                onChange={(v) => {
+                  if (dns)
+                    void applyAndRestart({
+                      dns: { ...dns, enhanced_mode: v as typeof dns.enhanced_mode },
+                    });
+                }}
+                disabled={!dns || !dns.enable}
+              />
+            }
+          />
+          <Row
+            label="上游 DNS"
+            sub="逗号分隔，支持 DoH/DoT/IP"
+            right={
+              <input
+                key={dns?.nameserver.join(",") ?? ""}
+                defaultValue={dns?.nameserver.join(", ") ?? ""}
+                onBlur={(e) => {
+                  if (!dns) return;
+                  const list = e.target.value
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+                  if (list.join() !== dns.nameserver.join())
+                    void applyAndRestart({ dns: { ...dns, nameserver: list } });
+                }}
+                disabled={!dns || !dns.enable}
+                spellCheck={false}
+                className="w-64 border-b border-[#23262d] bg-transparent pb-0.5 text-right font-sg text-[11px] text-[#9aa0a8] outline-none focus:border-accent disabled:opacity-40"
+              />
+            }
+            last
+          />
         </Sect>
 
         <Sect title="外观">

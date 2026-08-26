@@ -102,11 +102,39 @@ export const profileSetInterval = (id: string, hours: number) =>
 export const configRegenerate = () =>
   invoke<string | null>("config_regenerate");
 
+export interface TunSettings {
+  enable: boolean;
+  stack: "gvisor" | "system" | "mixed";
+  auto_route: boolean;
+  strict_route: boolean;
+  dns_hijack: boolean;
+  mtu: number;
+}
+
+export interface DnsSettings {
+  enable: boolean;
+  enhanced_mode: "fake-ip" | "redir-host";
+  nameserver: string[];
+  fallback: string[];
+}
+
 export interface AppSettings {
   system_proxy: boolean;
   proxy_bypass: string;
   silent_start: boolean;
+  tun: TunSettings;
+  dns: DnsSettings;
 }
+
+export interface ServiceStatus {
+  installed: boolean;
+  reachable: boolean;
+  core_running: boolean;
+}
+
+export const serviceStatus = () => invoke<ServiceStatus>("service_status");
+export const serviceInstall = () => invoke<void>("service_install");
+export const serviceUninstall = () => invoke<void>("service_uninstall");
 
 export const settingsGet = () => invoke<AppSettings>("settings_get");
 export const settingsSet = (settings: AppSettings) =>

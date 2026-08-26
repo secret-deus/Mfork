@@ -5,10 +5,59 @@ use tauri::{AppHandle, Manager};
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
+pub struct TunSettings {
+    pub enable: bool,
+    /// gvisor | system | mixed
+    pub stack: String,
+    pub auto_route: bool,
+    pub strict_route: bool,
+    pub dns_hijack: bool,
+    pub mtu: u32,
+}
+
+impl Default for TunSettings {
+    fn default() -> Self {
+        Self {
+            enable: false,
+            stack: "mixed".into(),
+            auto_route: true,
+            strict_route: true,
+            dns_hijack: true,
+            mtu: 1500,
+        }
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DnsSettings {
+    /// when false the profile's own dns block is left untouched
+    pub enable: bool,
+    /// fake-ip | redir-host
+    pub enhanced_mode: String,
+    pub nameserver: Vec<String>,
+    pub fallback: Vec<String>,
+}
+
+impl Default for DnsSettings {
+    fn default() -> Self {
+        Self {
+            enable: false,
+            enhanced_mode: "fake-ip".into(),
+            nameserver: vec!["https://223.5.5.5/dns-query".into(), "https://doh.pub/dns-query".into()],
+            fallback: vec!["https://1.1.1.1/dns-query".into(), "https://8.8.8.8/dns-query".into()],
+        }
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct AppSettings {
     pub system_proxy: bool,
     pub proxy_bypass: String,
     pub silent_start: bool,
+    pub tun: TunSettings,
+    pub dns: DnsSettings,
 }
 
 pub fn default_bypass() -> String {
@@ -25,6 +74,8 @@ impl Default for AppSettings {
             system_proxy: false,
             proxy_bypass: default_bypass(),
             silent_start: false,
+            tun: TunSettings::default(),
+            dns: DnsSettings::default(),
         }
     }
 }
