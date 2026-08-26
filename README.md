@@ -1,23 +1,25 @@
 # Mfork
 
-一個基於 [mihomo](https://github.com/MetaCubeX/mihomo) 內核的桌面代理客戶端。Windows 優先，Tauri 2 + React 19 構建。
+一個基於 [mihomo](https://github.com/MetaCubeX/mihomo) 內核的桌面代理客戶端。Tauri 2 + React 19 構建，支持 Windows / macOS / Linux（系統代理與 TUN 的系統集成 Windows 優先落地）。
 
 > 設計文檔見 [docs/DESIGN.md](docs/DESIGN.md)，UI 設計稿源文件在 [design/](design/)。
 
 ## 開發
 
-前置要求：Node.js ≥ 20、pnpm、Rust stable（MSVC 工具鏈）。
+前置要求：Node.js ≥ 20、pnpm、Rust stable（Windows 為 MSVC 工具鏈；Linux 另需 webkit2gtk 等，見 `.github/workflows/build.yml`）。
 
 ```bash
 # 1. 安裝依賴
 pnpm install
 
-# 2. 下載 mihomo 內核到 src-tauri/resources/mihomo/（僅首次）
-powershell -File scripts/fetch-core.ps1
+# 2. 下載當前平台的 mihomo 內核（僅首次；自動識別 OS/架構）
+node scripts/fetch-core.mjs
 
 # 3. 啟動開發環境
 pnpm tauri dev
 ```
+
+打安裝包：`pnpm tauri build`（內核隨包分發，用戶無需單獨下載）。推送 `v*` tag 或手動觸發 GitHub Actions 可產出 Windows/macOS(x64+arm64)/Linux 全平台安裝包。
 
 ## 當前進度
 

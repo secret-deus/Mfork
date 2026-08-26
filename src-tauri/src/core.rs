@@ -41,11 +41,13 @@ fn random_secret() -> String {
         .collect()
 }
 
+const CORE_BIN: &str = if cfg!(windows) { "mihomo.exe" } else { "mihomo" };
+
 /// Locate the bundled mihomo binary: bundle resources first, then the
 /// source tree (dev builds where resources are not yet copied).
 fn core_binary(app: &AppHandle) -> Result<PathBuf, String> {
     if let Ok(dir) = app.path().resource_dir() {
-        let p = dir.join("resources").join("mihomo").join("mihomo.exe");
+        let p = dir.join("resources").join("mihomo").join(CORE_BIN);
         if p.exists() {
             return Ok(p);
         }
@@ -53,11 +55,13 @@ fn core_binary(app: &AppHandle) -> Result<PathBuf, String> {
     let dev = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("resources")
         .join("mihomo")
-        .join("mihomo.exe");
+        .join(CORE_BIN);
     if dev.exists() {
         return Ok(dev);
     }
-    Err("mihomo.exe not found in resources/mihomo/ — run scripts/fetch-core to download it".into())
+    Err(format!(
+        "{CORE_BIN} not found in resources/mihomo/ — run `node scripts/fetch-core.mjs` to download it"
+    ))
 }
 
 fn data_dir(app: &AppHandle) -> Result<PathBuf, String> {
