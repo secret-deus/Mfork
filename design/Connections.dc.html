@@ -1,0 +1,91 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600&amp;display=swap">
+  <style>
+    body{margin:0;background:#0b0c0f;color:#ececef;font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+    a{color:#7c9cff}a:hover{color:#9db4ff}
+    .sg{font-family:"Space Grotesk","Segoe UI",system-ui,sans-serif}
+    .cap{font-size:10px;letter-spacing:3px;color:#5e626a;text-transform:uppercase}
+    .cap2{font-size:9px;letter-spacing:2px;color:#565b63;text-transform:uppercase}
+    .ico{width:38px;height:38px;display:flex;align-items:center;justify-content:center;border-radius:10px;color:#54585f}
+    .ico.on{color:#f0f1f3;background:rgba(255,255,255,.06)}
+    .act{display:flex;align-items:center;gap:7px;font-size:12px;color:#9ba0a8}
+    table{border-collapse:collapse;width:100%;table-layout:fixed}
+    th{font-size:9px;letter-spacing:2px;text-transform:uppercase;font-weight:600;color:#565b63;text-align:left;padding:10px 10px 10px 0;white-space:nowrap}
+    td{font-size:12px;padding:10px 10px 10px 0;border-top:1px solid #16181d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  </style>
+</helmet>
+<div style="width:1280px;height:800px;display:flex;background:#0b0c0f;overflow:hidden;border-radius:10px;border:1px solid #1e2126;box-sizing:border-box;position:relative">
+  <div style="width:64px;flex-shrink:0;border-right:1px solid #16181d;display:flex;flex-direction:column;align-items:center;padding:14px 0;gap:4px;box-sizing:border-box;z-index:2">
+    <div style="width:30px;height:30px;border-radius:9px;background:#f2f3f5;display:flex;align-items:center;justify-content:center;margin-bottom:18px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#101114" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12h5.5c2.2 0 3.2-1.6 4.6-3.2 1.3-1.5 2.4-2.3 4.4-2.3h2.5"></path><path d="M9 12c2.2 0 3.2 1.6 4.6 3.2 1.3 1.5 2.4 2.3 4.4 2.3h2.5"></path><circle cx="3.5" cy="12" r="1.5" fill="#101114" stroke="none"></circle></svg></div>
+    <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg></div>
+    <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18"></path><ellipse cx="12" cy="12" rx="4" ry="9"></ellipse></svg></div>
+    <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5"></path></svg></div>
+    <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9"></path><circle cx="17" cy="6" r="2.5"></circle><path d="M20 12h-9"></path><circle cx="7" cy="12" r="2.5"></circle><path d="M4 18h9"></path><circle cx="17" cy="18" r="2.5"></circle></svg></div>
+    <div class="ico on"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 8-6-16-3 8H2"></path></svg></div>
+    <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 5H3l7 8v5l4 2v-7z"></path></svg></div>
+    <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m5 7 5 5-5 5"></path><path d="M13 17h7"></path></svg></div>
+    <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg></div>
+    <div style="flex:1"></div>
+    <span style="width:7px;height:7px;border-radius:50%;background:#3fd98c;display:block"></span>
+  </div>
+  <div style="position:absolute;top:0;right:0;height:34px;display:flex;align-items:center;padding:0 6px;gap:2px;z-index:3">
+    <div style="width:30px;height:26px;display:flex;align-items:center;justify-content:center"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="#8b8f97" stroke-width="1.2"><path d="M2 6h8"></path></svg></div>
+    <div style="width:30px;height:26px;display:flex;align-items:center;justify-content:center"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="#8b8f97" stroke-width="1.2"><rect x="2.5" y="2.5" width="7" height="7" rx="1"></rect></svg></div>
+    <div style="width:30px;height:26px;display:flex;align-items:center;justify-content:center"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="#8b8f97" stroke-width="1.2"><path d="m2.5 2.5 7 7M9.5 2.5l-7 7"></path></svg></div>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;padding:46px 56px 24px;box-sizing:border-box;min-width:0">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;align-items:baseline;gap:22px">
+        <div class="cap">Mfork · 连接 Connections</div>
+        <span class="cap2">活动 <span class="sg" style="font-size:11px;color:#c3c8d0">47</span></span>
+        <span class="cap2">下载 <span class="sg" style="font-size:11px;color:#c3c8d0">6.8 GB</span></span>
+        <span class="cap2">上传 <span class="sg" style="font-size:11px;color:#c3c8d0">380 MB</span></span>
+      </div>
+      <div style="display:flex;gap:24px">
+        <div class="act"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"></rect><rect x="14" y="4" width="4" height="16" rx="1"></rect></svg><span>暂停</span></div>
+        <div class="act" style="color:#f26d6d"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m5 5 14 14M19 5 5 19"></path></svg><span>关闭全部</span></div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;margin-top:26px;padding-bottom:12px;border-bottom:1px solid #24272e">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#565b63" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg>
+      <span style="flex:1;font-size:13px;color:#565b63">搜索主机 / 规则 / 节点</span>
+    </div>
+    <div style="flex:1;min-height:0;overflow:hidden">
+      <table>
+        <thead><tr>
+          <th style="width:25%">主机</th><th style="width:6%">网络</th><th style="width:15%">规则</th><th style="width:20%">链路</th><th style="width:10%">速率</th><th style="width:8%">下载</th><th style="width:7%">上传</th><th style="width:5%">时长</th><th style="width:4%"></th>
+        </tr></thead>
+        <tbody>
+          <tr><td style="color:#d6d9de">www.youtube.com:443</td><td class="cap2">TCP</td><td style="color:#7c8590;font-size:11px">DOMAIN-SUFFIX</td><td style="color:#7c8590;font-size:11px">节点选择 » 香港 IEPL-01</td><td class="sg" style="color:#3fd98c">2.4 MB/s</td><td class="sg" style="color:#8b8f97">480 MB</td><td class="sg" style="color:#8b8f97">12 MB</td><td class="sg" style="color:#565b63">03:12</td><td><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#565b63" stroke-width="1.8" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"></path></svg></td></tr>
+          <tr><td style="color:#d6d9de">github.com:443</td><td class="cap2">TCP</td><td style="color:#7c8590;font-size:11px">GEOSITE · github</td><td style="color:#7c8590;font-size:11px">节点选择 » 香港 IEPL-01</td><td class="sg" style="color:#3fd98c">860 KB/s</td><td class="sg" style="color:#8b8f97">96 MB</td><td class="sg" style="color:#8b8f97">4.2 MB</td><td class="sg" style="color:#565b63">08:41</td><td><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#565b63" stroke-width="1.8" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"></path></svg></td></tr>
+          <tr><td style="color:#d6d9de">api.anthropic.com:443</td><td class="cap2">TCP</td><td style="color:#7c8590;font-size:11px">DOMAIN-SUFFIX</td><td style="color:#7c8590;font-size:11px">节点选择 » 香港 IEPL-01</td><td class="sg" style="color:#3fd98c">120 KB/s</td><td class="sg" style="color:#8b8f97">18 MB</td><td class="sg" style="color:#8b8f97">2.1 MB</td><td class="sg" style="color:#565b63">12:05</td><td><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#565b63" stroke-width="1.8" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"></path></svg></td></tr>
+          <tr><td style="color:#d6d9de">www.netflix.com:443</td><td class="cap2">TCP</td><td style="color:#7c8590;font-size:11px">GEOSITE · netflix</td><td style="color:#7c8590;font-size:11px">流媒体解锁 » 新加坡-01</td><td class="sg" style="color:#3fd98c">3.4 MB/s</td><td class="sg" style="color:#8b8f97">1.1 GB</td><td class="sg" style="color:#8b8f97">8.4 MB</td><td class="sg" style="color:#565b63">22:18</td><td><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#565b63" stroke-width="1.8" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"></path></svg></td></tr>
+          <tr><td style="color:#d6d9de">weibo.com:443</td><td class="cap2">TCP</td><td style="color:#7c8590;font-size:11px">GEOSITE · cn</td><td class="cap2" style="color:#3fd98c">Direct</td><td class="sg" style="color:#565b63">—</td><td class="sg" style="color:#8b8f97">6.2 MB</td><td class="sg" style="color:#8b8f97">890 KB</td><td class="sg" style="color:#565b63">01:44</td><td><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#565b63" stroke-width="1.8" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"></path></svg></td></tr>
+          <tr><td style="color:#d6d9de">im.qq.com:443</td><td class="cap2">TCP</td><td style="color:#7c8590;font-size:11px">GEOIP · CN</td><td class="cap2" style="color:#3fd98c">Direct</td><td class="sg" style="color:#565b63">—</td><td class="sg" style="color:#8b8f97">2.4 MB</td><td class="sg" style="color:#8b8f97">1.2 MB</td><td class="sg" style="color:#565b63">31:02</td><td><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#565b63" stroke-width="1.8" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"></path></svg></td></tr>
+          <tr><td style="color:#d6d9de">steamcdn-a.akamaihd.net:443</td><td class="cap2">TCP</td><td style="color:#7c8590;font-size:11px">GEOSITE · steam@cn</td><td class="cap2" style="color:#3fd98c">Direct</td><td class="sg" style="color:#3fd98c">1.6 MB/s</td><td class="sg" style="color:#8b8f97">3.2 GB</td><td class="sg" style="color:#8b8f97">2.0 MB</td><td class="sg" style="color:#565b63">06:57</td><td><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#565b63" stroke-width="1.8" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"></path></svg></td></tr>
+          <tr><td style="color:#d6d9de">discord.com:443</td><td class="cap2">TCP</td><td style="color:#7c8590;font-size:11px">DOMAIN-KEYWORD</td><td style="color:#7c8590;font-size:11px">节点选择 » 香港 IEPL-01</td><td class="sg" style="color:#565b63">4 KB/s</td><td class="sg" style="color:#8b8f97">1.4 MB</td><td class="sg" style="color:#8b8f97">640 KB</td><td class="sg" style="color:#565b63">45:12</td><td><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#565b63" stroke-width="1.8" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"></path></svg></td></tr>
+          <tr><td style="color:#d6d9de">stun.l.google.com:19302</td><td class="cap2">UDP</td><td style="color:#7c8590;font-size:11px">GEOSITE · google</td><td style="color:#7c8590;font-size:11px">节点选择 » 香港 IEPL-01</td><td class="sg" style="color:#565b63">2 KB/s</td><td class="sg" style="color:#8b8f97">120 KB</td><td class="sg" style="color:#8b8f97">88 KB</td><td class="sg" style="color:#565b63">02:33</td><td><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#565b63" stroke-width="1.8" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"></path></svg></td></tr>
+          <tr><td style="color:#8b8f97">tracker.example-ads.com:443</td><td class="cap2">TCP</td><td style="color:#7c8590;font-size:11px">RULE-SET · reject</td><td class="cap2" style="color:#f26d6d">Reject</td><td class="sg" style="color:#565b63">—</td><td class="sg" style="color:#565b63">0 B</td><td class="sg" style="color:#565b63">0 B</td><td class="sg" style="color:#565b63">00:01</td><td><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#565b63" stroke-width="1.8" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"></path></svg></td></tr>
+          <tr><td style="color:#d6d9de">mtalk.google.com:5228</td><td class="cap2">TCP</td><td style="color:#7c8590;font-size:11px">GEOSITE · google</td><td style="color:#7c8590;font-size:11px">节点选择 » 香港 IEPL-01</td><td class="sg" style="color:#565b63">1 KB/s</td><td class="sg" style="color:#8b8f97">420 KB</td><td class="sg" style="color:#8b8f97">380 KB</td><td class="sg" style="color:#565b63">58:20</td><td><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#565b63" stroke-width="1.8" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"></path></svg></td></tr>
+          <tr><td style="color:#d6d9de">cdn.jsdelivr.net:443</td><td class="cap2">TCP</td><td style="color:#7c8590;font-size:11px">MATCH</td><td style="color:#7c8590;font-size:11px">兜底分流 » 节点选择</td><td class="sg" style="color:#565b63">36 KB/s</td><td class="sg" style="color:#8b8f97">8.8 MB</td><td class="sg" style="color:#8b8f97">300 KB</td><td class="sg" style="color:#565b63">00:47</td><td><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#565b63" stroke-width="1.8" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"></path></svg></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

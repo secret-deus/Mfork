@@ -1,0 +1,99 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600&amp;display=swap">
+  <style>
+    body{margin:0;background:#0b0c0f;color:#ececef;font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+    a{color:#7c9cff}a:hover{color:#9db4ff}
+    .sg{font-family:"Space Grotesk","Segoe UI",system-ui,sans-serif}
+    .cap{font-size:10px;letter-spacing:3px;color:#5e626a;text-transform:uppercase}
+    .cap2{font-size:9px;letter-spacing:2px;color:#565b63;text-transform:uppercase}
+    .ico{width:38px;height:38px;display:flex;align-items:center;justify-content:center;border-radius:10px;color:#54585f}
+    .ico.on{color:#f0f1f3;background:rgba(255,255,255,.06)}
+    .act{display:flex;align-items:center;gap:6px;font-size:12px;color:#9ba0a8}
+    .sw{width:30px;height:17px;border-radius:9px;background:#24272e;position:relative;flex-shrink:0}
+    .sw.on{background:#7c9cff}
+    .sw i{position:absolute;top:2.5px;left:3px;width:12px;height:12px;border-radius:50%;background:#e8eaf0;display:block}
+    .sw.on i{left:15px;background:#101114}
+    .row{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:1px solid #16181d;gap:16px}
+    .lbl{font-size:12.5px;color:#c3c8d0}
+    .sub{font-size:10.5px;color:#565b63;margin-top:3px}
+    .val{display:flex;align-items:center;gap:7px;font-size:12.5px;color:#9aa0a8}
+    .sect{font-size:15px;font-weight:600;padding-bottom:10px;border-bottom:1px solid #24272e}
+  </style>
+</helmet>
+<div style="width:1280px;height:800px;display:flex;background:#0b0c0f;overflow:hidden;border-radius:10px;border:1px solid #1e2126;box-sizing:border-box;position:relative">
+  <div style="width:64px;flex-shrink:0;border-right:1px solid #16181d;display:flex;flex-direction:column;align-items:center;padding:14px 0;gap:4px;box-sizing:border-box;z-index:2">
+    <div style="width:30px;height:30px;border-radius:9px;background:#f2f3f5;display:flex;align-items:center;justify-content:center;margin-bottom:18px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#101114" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12h5.5c2.2 0 3.2-1.6 4.6-3.2 1.3-1.5 2.4-2.3 4.4-2.3h2.5"></path><path d="M9 12c2.2 0 3.2 1.6 4.6 3.2 1.3 1.5 2.4 2.3 4.4 2.3h2.5"></path><circle cx="3.5" cy="12" r="1.5" fill="#101114" stroke="none"></circle></svg></div>
+    <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg></div>
+    <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18"></path><ellipse cx="12" cy="12" rx="4" ry="9"></ellipse></svg></div>
+    <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5"></path></svg></div>
+    <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9"></path><circle cx="17" cy="6" r="2.5"></circle><path d="M20 12h-9"></path><circle cx="7" cy="12" r="2.5"></circle><path d="M4 18h9"></path><circle cx="17" cy="18" r="2.5"></circle></svg></div>
+    <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 8-6-16-3 8H2"></path></svg></div>
+    <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 5H3l7 8v5l4 2v-7z"></path></svg></div>
+    <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m5 7 5 5-5 5"></path><path d="M13 17h7"></path></svg></div>
+    <div class="ico on"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg></div>
+    <div style="flex:1"></div>
+    <span style="width:7px;height:7px;border-radius:50%;background:#3fd98c;display:block"></span>
+  </div>
+  <div style="position:absolute;top:0;right:0;height:34px;display:flex;align-items:center;padding:0 6px;gap:2px;z-index:3">
+    <div style="width:30px;height:26px;display:flex;align-items:center;justify-content:center"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="#8b8f97" stroke-width="1.2"><path d="M2 6h8"></path></svg></div>
+    <div style="width:30px;height:26px;display:flex;align-items:center;justify-content:center"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="#8b8f97" stroke-width="1.2"><rect x="2.5" y="2.5" width="7" height="7" rx="1"></rect></svg></div>
+    <div style="width:30px;height:26px;display:flex;align-items:center;justify-content:center"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="#8b8f97" stroke-width="1.2"><path d="m2.5 2.5 7 7M9.5 2.5l-7 7"></path></svg></div>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;padding:46px 56px 30px;box-sizing:border-box;min-width:0">
+    <div class="cap">Mfork · 设置 Settings</div>
+    <div style="display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));column-gap:64px;row-gap:34px;margin-top:28px;align-content:start">
+      <div>
+        <div class="sect">网络</div>
+        <div class="row"><div><div class="lbl">混合端口</div><div class="sub">HTTP 与 SOCKS5 共用端口</div></div><span class="sg val" style="color:#ececef">7890</span></div>
+        <div class="row"><span class="lbl">允许局域网连接</span><div class="sw"><i></i></div></div>
+        <div class="row"><span class="lbl">IPv6</span><div class="sw"><i></i></div></div>
+        <div class="row" style="border-bottom:none"><div><div class="lbl">系统代理绕过列表</div><div class="sub">localhost;127.*;192.168.*;&lt;local&gt;</div></div><span class="act">编辑</span></div>
+      </div>
+      <div>
+        <div class="sect">TUN 模式</div>
+        <div class="row"><div><div class="lbl">启用 TUN</div><div class="sub">虚拟网卡接管全局流量，需安装系统服务</div></div><div class="sw"><i></i></div></div>
+        <div class="row"><span class="lbl">网络栈</span><div class="val"><span>Mixed</span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#565b63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg></div></div>
+        <div class="row"><span class="lbl">DNS 劫持</span><span class="sg val">any:53</span></div>
+        <div class="row" style="border-bottom:none"><div><div class="lbl">系统服务</div><div class="sub">用于免管理员权限启用 TUN</div></div><span class="act" style="color:#7c9cff">安装服务</span></div>
+      </div>
+      <div>
+        <div class="sect">系统</div>
+        <div class="row"><span class="lbl">开机自启</span><div class="sw on"><i></i></div></div>
+        <div class="row"><div><div class="lbl">静默启动</div><div class="sub">启动时仅显示托盘图标</div></div><div class="sw on"><i></i></div></div>
+        <div class="row" style="border-bottom:none"><span class="lbl">关闭窗口时最小化到托盘</span><div class="sw on"><i></i></div></div>
+      </div>
+      <div>
+        <div class="sect">内核</div>
+        <div class="row"><div><div class="lbl">当前版本</div><div class="sub sg">mihomo v1.19.14</div></div><span class="act">检查升级</span></div>
+        <div class="row"><span class="lbl">版本通道</span><div class="val"><span>Stable</span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#565b63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg></div></div>
+        <div class="row" style="border-bottom:none"><div><div class="lbl">GeoData 数据库</div><div class="sub">更新于 2026-08-20</div></div><span class="act">立即更新</span></div>
+      </div>
+      <div>
+        <div class="sect">外观</div>
+        <div class="row"><span class="lbl">主题</span><div class="val"><span>深色</span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#565b63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg></div></div>
+        <div class="row" style="border-bottom:none"><span class="lbl">语言</span><div class="val"><span>简体中文</span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#565b63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg></div></div>
+      </div>
+      <div>
+        <div class="sect">备份</div>
+        <div class="row"><div><div class="lbl">WebDAV 地址</div><div class="sub">未配置</div></div><span class="act">配置</span></div>
+        <div class="row" style="border-bottom:none"><span class="lbl">备份与恢复</span><div style="display:flex;gap:22px"><span class="act">立即备份</span><span class="act">恢复</span></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
