@@ -16,7 +16,7 @@ import {
   traySync,
   wsUrl,
 } from "./lib/core";
-import { ConnectionsSnapshot, ConnItem } from "./lib/types";
+import { ConnectionsSnapshot, ConnItem, LogLine } from "./lib/types";
 
 export type CorePhase = "stopped" | "starting" | "running" | "error";
 export type ProxyMode = "rule" | "global" | "direct";
@@ -32,8 +32,12 @@ interface AppState {
   memory: number;
   connections: number;
   snapshot: ConnectionsSnapshot | null;
+  logs: LogLine[];
+  logsPaused: boolean;
   settings: AppSettings | null;
   autostart: boolean;
+  setLogsPaused: (paused: boolean) => void;
+  clearLogs: () => void;
   start: () => Promise<void>;
   stop: () => Promise<void>;
   setMode: (mode: ProxyMode) => Promise<void>;
@@ -46,16 +50,46 @@ interface AppState {
 
 let sockets: WebSocket[] = [];
 
+// log buffer: batched into the store every 250ms so chatty debug output
+// doesn't trigger a re-render per line
+let logSeq = 0;
+let logBuf: LogLine[] = [];
+let logFlush: number | null = null;
+const LOG_CAP = 1000;
+
 function closeStreams() {
   for (const ws of sockets) ws.close();
   sockets = [];
+  if (logFlush != null) {
+    clearTimeout(logFlush);
+    logFlush = null;
+  }
+  logBuf = [];
 }
 
 function openStreams(
   api: ApiInfo,
   set: (partial: Partial<AppState>) => void,
+  get: () => AppState,
 ) {
   closeStreams();
+  const logs = new WebSocket(wsUrl(api, "/logs") + "&level=debug");
+  logs.onmessage = (e) => {
+    if (get().logsPaused) return;
+    const d = JSON.parse(e.data);
+    logBuf.push({ type: d.type, payload: d.payload, seq: logSeq++, at: Date.now() });
+    if (logFlush == null) {
+      logFlush = window.setTimeout(() => {
+        logFlush = null;
+        const merged = [...get().logs, ...logBuf];
+        logBuf = [];
+        set({
+          logs: merged.length > LOG_CAP ? merged.slice(merged.length - LOG_CAP) : merged,
+        });
+      }, 250);
+    }
+  };
+  sockets.push(logs);
   const traffic = new WebSocket(wsUrl(api, "/traffic"));
   traffic.onmessage = (e) => {
     const d = JSON.parse(e.data);
@@ -95,7 +129,7 @@ function openStreams(
       },
     });
   };
-  sockets = [traffic, memory, conns];
+  sockets.push(traffic, memory, conns);
 }
 
 let initialized = false;
@@ -116,8 +150,19 @@ export const useApp = create<AppState>((set, get) => ({
   memory: 0,
   connections: 0,
   snapshot: null,
+  logs: [],
+  logsPaused: false,
   settings: null,
   autostart: false,
+
+  setLogsPaused(paused) {
+    set({ logsPaused: paused });
+  },
+
+  clearLogs() {
+    logBuf = [];
+    set({ logs: [] });
+  },
 
   async start() {
     set({ phase: "starting", error: null });
@@ -125,7 +170,7 @@ export const useApp = create<AppState>((set, get) => ({
       const api = await coreStart();
       const version = await apiGet<{ version: string }>(api, "/version");
       const configs = await apiGet<{ mode: string }>(api, "/configs");
-      openStreams(api, set);
+      openStreams(api, set, get);
       const mode = configs.mode.toLowerCase() as ProxyMode;
       set({ phase: "running", api, version: version.version, mode });
       void traySync(mode);
@@ -229,7 +274,7 @@ export const useApp = create<AppState>((set, get) => ({
     if (status.running && status.api) {
       const version = await apiGet<{ version: string }>(status.api, "/version");
       const configs = await apiGet<{ mode: string }>(status.api, "/configs");
-      openStreams(status.api, set);
+      openStreams(status.api, set, get);
       const mode = configs.mode.toLowerCase() as ProxyMode;
       set({
         phase: "running",

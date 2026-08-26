@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useApp } from "../store";
-import { apiGet, apiPut } from "../lib/core";
+import { apiGet, apiPut, relativeTime } from "../lib/core";
 import { RuleItem, RuleProvider } from "../lib/types";
 
 export default function Rules() {
@@ -64,7 +64,11 @@ export default function Rules() {
           {providers.map((p) => (
             <div key={p.name} className="flex items-center gap-3">
               <span className="text-xs text-[#b6bac2]">{p.name}</span>
+              <span className="cap2">{p.behavior}</span>
               <span className="cap2">{p.ruleCount} rules</span>
+              {p.updatedAt ? (
+                <span className="cap2">{relativeTime(Date.parse(p.updatedAt) / 1000)}更新</span>
+              ) : null}
               <button
                 onClick={() => void updateProvider(p.name)}
                 disabled={updating === p.name}

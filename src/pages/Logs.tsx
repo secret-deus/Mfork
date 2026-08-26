@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { useApp } from "../store";
-import { wsUrl } from "../lib/core";
-import { LogLine } from "../lib/types";
 
 const LEVELS = ["all", "info", "warning", "error", "debug"] as const;
 const COLOR: Record<string, string> = {
@@ -11,36 +9,25 @@ const COLOR: Record<string, string> = {
   debug: "text-dim",
 };
 
-let seq = 0;
-
 export default function Logs() {
-  const { api, phase } = useApp();
-  const [lines, setLines] = useState<LogLine[]>([]);
+  const { phase, logs, logsPaused, setLogsPaused, clearLogs } = useApp();
   const [level, setLevel] = useState<(typeof LEVELS)[number]>("all");
-  const [paused, setPaused] = useState(false);
-  const pausedRef = useRef(paused);
-  pausedRef.current = paused;
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const stickToBottom = useRef(true);
 
+  const shown = level === "all" ? logs : logs.filter((l) => l.type === level);
+
+  // follow new output only while the user is at (or near) the bottom
   useEffect(() => {
-    if (!api || phase !== "running") return;
-    const ws = new WebSocket(wsUrl(api, "/logs") + "&level=debug");
-    ws.onmessage = (e) => {
-      if (pausedRef.current) return;
-      const d = JSON.parse(e.data);
-      setLines((prev) => {
-        const next = [...prev, { type: d.type, payload: d.payload, seq: seq++, at: Date.now() }];
-        return next.length > 500 ? next.slice(next.length - 500) : next;
-      });
-    };
-    return () => ws.close();
-  }, [api, phase]);
+    const el = scrollRef.current;
+    if (el && stickToBottom.current) el.scrollTop = el.scrollHeight;
+  }, [shown.length]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "instant" as ScrollBehavior });
-  }, [lines]);
-
-  const shown = level === "all" ? lines : lines.filter((l) => l.type === level);
+  const onScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+  };
 
   return (
     <div className="flex h-full min-w-0 flex-col px-14 pb-6 pt-13">
@@ -60,18 +47,22 @@ export default function Logs() {
           ))}
           <div className="h-4 w-px bg-line" />
           <button
-            onClick={() => setPaused(!paused)}
-            className={`text-xs ${paused ? "text-warn" : "text-mut hover:text-fg"}`}
+            onClick={() => setLogsPaused(!logsPaused)}
+            className={`text-xs ${logsPaused ? "text-warn" : "text-mut hover:text-fg"}`}
           >
-            {paused ? "继续" : "暂停"}
+            {logsPaused ? "继续" : "暂停"}
           </button>
-          <button onClick={() => setLines([])} className="text-xs text-mut hover:text-fg">
+          <button onClick={clearLogs} className="text-xs text-mut hover:text-fg">
             清空
           </button>
         </div>
       </div>
-      <div className="mt-5 min-h-0 flex-1 overflow-y-auto border-t border-line-strong pt-3 select-text">
-        {phase !== "running" ? (
+      <div
+        ref={scrollRef}
+        onScroll={onScroll}
+        className="mt-5 min-h-0 flex-1 overflow-y-auto border-t border-line-strong pt-3 select-text"
+      >
+        {phase !== "running" && shown.length === 0 ? (
           <div className="flex h-full items-center justify-center">
             <span className="cap">内核未运行</span>
           </div>
@@ -92,7 +83,6 @@ export default function Logs() {
             </div>
           ))
         )}
-        <div ref={bottomRef} />
       </div>
     </div>
   );
