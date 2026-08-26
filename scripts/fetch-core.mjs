@@ -9,6 +9,11 @@ import { fileURLToPath } from "node:url";
 import { gunzipSync } from "node:zlib";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
+// always use the Windows-bundled bsdtar: a GNU tar earlier in PATH (e.g.
+// Git Bash) treats "C:" in paths as a remote host and fails
+const tar = process.platform === "win32"
+  ? join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe")
+  : "tar";
 const destDir = join(root, "src-tauri", "resources", "mihomo");
 mkdirSync(destDir, { recursive: true });
 
@@ -39,7 +44,7 @@ if (ext === "gz") {
   const tmp = mkdtempSync(join(tmpdir(), "mihomo-"));
   const zip = join(tmp, asset.name);
   writeFileSync(zip, buf);
-  execFileSync("tar", ["-xf", zip, "-C", tmp]);
+  execFileSync(tar, ["-xf", zip, "-C", tmp]);
   const exe = readdirSync(tmp).find((f) => f.endsWith(".exe"));
   if (!exe) throw new Error("no .exe found in archive");
   copyFileSync(join(tmp, exe), dest);
@@ -58,7 +63,7 @@ if (os === "windows") {
   const tmp = mkdtempSync(join(tmpdir(), "wintun-"));
   const zip = join(tmp, "wintun.zip");
   writeFileSync(zip, wbuf);
-  execFileSync("tar", ["-xf", zip, "-C", tmp]);
+  execFileSync(tar, ["-xf", zip, "-C", tmp]);
   copyFileSync(join(tmp, "wintun", "bin", dllArch, "wintun.dll"), join(destDir, "wintun.dll"));
   rmSync(tmp, { recursive: true, force: true });
   console.log(`OK: ${join(destDir, "wintun.dll")}`);
