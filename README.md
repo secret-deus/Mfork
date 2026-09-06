@@ -19,7 +19,12 @@ node scripts/fetch-core.mjs
 pnpm tauri dev
 ```
 
-打安裝包：`pnpm tauri build`（內核隨包分發，用戶無需單獨下載）。推送 `v*` tag 或手動觸發 GitHub Actions 可產出 Windows/macOS(x64+arm64)/Linux 全平台安裝包。
+打安裝包：`pnpm tauri build`（內核隨包分發，用戶無需單獨下載）。本機打包需提供 updater 簽名私鑰，且**必須同時設置密碼變量**（即使私鑰無密碼，否則 CLI 會停在密碼提示）：
+
+```bash
+TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/mfork.key)" TAURI_SIGNING_PRIVATE_KEY_PASSWORD="" pnpm tauri build
+```
+推送 `v*` tag 或手動觸發 GitHub Actions 可產出 Windows/macOS(x64+arm64)/Linux 全平台安裝包。
 
 ## 當前進度
 
