@@ -1,16 +1,79 @@
 @import "tailwindcss";
 
-@theme {
-  --color-bg: #0b0c0f;
-  --color-line: #1c1f24;
-  --color-line-strong: #24272e;
-  --color-mut: #8b8f97;
-  --color-dim: #565b63;
-  --color-fg: #ececef;
-  --color-accent: #7c9cff;
-  --color-ok: #3fd98c;
-  --color-warn: #e8c15a;
-  --color-err: #f26d6d;
+/* palette — dark is the default, light overrides via data-theme on <html> */
+:root {
+  --t-bg: #0b0c0f;
+  --t-surface: #121317;
+  --t-line-faint: #131519;
+  --t-line-soft: #16181d;
+  --t-line: #1c1f24;
+  --t-line-strong: #24272e;
+  --t-fg: #ececef;
+  --t-fg-2: #c3c8d0;
+  --t-fg-3: #9aa0a8;
+  --t-mut: #8b8f97;
+  --t-dim: #565b63;
+  --t-faint: #3a3f47;
+  --t-toggle-off: #23262d;
+  --t-knob: #e7e9ec;
+  --t-knob-on: #101114;
+  --t-logo-bg: #f2f3f5;
+  --t-logo-fg: #101114;
+  --t-nav-active: rgba(255, 255, 255, 0.06);
+  --t-accent: #7c9cff;
+  --t-ok: #3fd98c;
+  --t-warn: #e8c15a;
+  --t-err: #f26d6d;
+}
+
+:root[data-theme="light"] {
+  --t-bg: #f7f7f8;
+  --t-surface: #ffffff;
+  --t-line-faint: #ededef;
+  --t-line-soft: #e6e7ea;
+  --t-line: #dcdee2;
+  --t-line-strong: #cbcfd6;
+  --t-fg: #141518;
+  --t-fg-2: #2b2e33;
+  --t-fg-3: #4a4e56;
+  --t-mut: #6b7079;
+  --t-dim: #9a9ea6;
+  --t-faint: #c8cbd1;
+  --t-toggle-off: #d5d8de;
+  --t-knob: #ffffff;
+  --t-knob-on: #ffffff;
+  --t-logo-bg: #141518;
+  --t-logo-fg: #f7f7f8;
+  --t-nav-active: rgba(0, 0, 0, 0.06);
+  --t-accent: #4a6be0;
+  --t-ok: #1f9d5c;
+  --t-warn: #a8801a;
+  --t-err: #d64545;
+}
+
+@theme inline {
+  --color-bg: var(--t-bg);
+  --color-surface: var(--t-surface);
+  --color-line-faint: var(--t-line-faint);
+  --color-line-soft: var(--t-line-soft);
+  --color-line: var(--t-line);
+  --color-line-strong: var(--t-line-strong);
+  --color-fg: var(--t-fg);
+  --color-fg-2: var(--t-fg-2);
+  --color-fg-3: var(--t-fg-3);
+  --color-mut: var(--t-mut);
+  --color-dim: var(--t-dim);
+  --color-faint: var(--t-faint);
+  --color-toggle-off: var(--t-toggle-off);
+  --color-knob: var(--t-knob);
+  --color-knob-on: var(--t-knob-on);
+  --color-logo-bg: var(--t-logo-bg);
+  --color-logo-fg: var(--t-logo-fg);
+  --color-nav-active: var(--t-nav-active);
+  --color-accent: var(--t-accent);
+  --color-ok: var(--t-ok);
+  --color-warn: var(--t-warn);
+  --color-err: var(--t-err);
   --font-sg: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
 }
 
@@ -22,24 +85,30 @@ body,
 
 body {
   margin: 0;
-  background: var(--color-bg);
-  color: var(--color-fg);
+  background: var(--t-bg);
+  color: var(--t-fg);
   font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   user-select: none;
   overflow: hidden;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+select option {
+  background: var(--t-bg);
+  color: var(--t-fg);
 }
 
 /* editorial micro-labels */
 .cap {
   font-size: 10px;
   letter-spacing: 3px;
-  color: var(--color-dim);
+  color: var(--t-dim);
   text-transform: uppercase;
 }
 .cap2 {
   font-size: 9px;
   letter-spacing: 2px;
-  color: var(--color-dim);
+  color: var(--t-dim);
   text-transform: uppercase;
 }

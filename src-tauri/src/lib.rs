@@ -1,3 +1,4 @@
+mod backup;
 mod core;
 mod override_;
 mod profile;
@@ -5,6 +6,7 @@ mod service;
 mod settings;
 mod system;
 mod tray;
+mod updater;
 
 use tauri::Manager;
 
@@ -15,6 +17,8 @@ pub fn run() {
             tray::show_window(app);
         }))
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
@@ -70,7 +74,18 @@ pub fn run() {
             service::service_status,
             service::service_install,
             service::service_uninstall,
-            tray::tray_sync
+            tray::tray_sync,
+            updater::core_version_info,
+            updater::core_check_update,
+            updater::core_upgrade,
+            updater::core_revert,
+            backup::backup_export_local,
+            backup::backup_import_local,
+            backup::webdav_check,
+            backup::webdav_list,
+            backup::webdav_backup,
+            backup::webdav_restore,
+            backup::webdav_delete
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

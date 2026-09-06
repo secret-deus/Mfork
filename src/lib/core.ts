@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { t } from "../i18n";
 
 export interface ApiInfo {
   port: number;
@@ -49,6 +50,12 @@ export const apiPatch = <T>(api: ApiInfo, path: string, body: unknown) =>
 export const apiPut = <T>(api: ApiInfo, path: string, body?: unknown) =>
   request<T>(api, path, {
     method: "PUT",
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
+export const apiPost = <T>(api: ApiInfo, path: string, body?: unknown) =>
+  request<T>(api, path, {
+    method: "POST",
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 
@@ -118,13 +125,70 @@ export interface DnsSettings {
   fallback: string[];
 }
 
+export interface WebdavSettings {
+  url: string;
+  username: string;
+  password: string;
+}
+
 export interface AppSettings {
+  /** fixed mixed port; 0 = random on every start */
+  mixed_port: number;
+  allow_lan: boolean;
+  ipv6: boolean;
   system_proxy: boolean;
   proxy_bypass: string;
   silent_start: boolean;
   tun: TunSettings;
   dns: DnsSettings;
+  core_channel: "stable" | "alpha";
+  theme: "dark" | "light" | "system";
+  locale: "zh-CN" | "zh-TW" | "en";
+  webdav: WebdavSettings;
 }
+
+// ---- core self-upgrade (M6)
+
+export interface CoreVersionInfo {
+  installed: string | null;
+  bundled: string | null;
+  upgraded: boolean;
+}
+
+export interface CoreRelease {
+  channel: string;
+  version: string;
+  asset: string;
+  url: string;
+  size: number;
+}
+
+export const coreVersionInfo = () => invoke<CoreVersionInfo>("core_version_info");
+export const coreCheckUpdate = (channel: string) =>
+  invoke<CoreRelease>("core_check_update", { channel });
+export const coreUpgrade = (channel: string) =>
+  invoke<string>("core_upgrade", { channel });
+export const coreRevert = () => invoke<void>("core_revert");
+
+// ---- backup (M6)
+
+export interface BackupEntry {
+  name: string;
+  size: number;
+  modified: string;
+}
+
+export const backupExportLocal = (path: string) =>
+  invoke<void>("backup_export_local", { path });
+export const backupImportLocal = (path: string) =>
+  invoke<void>("backup_import_local", { path });
+export const webdavCheck = () => invoke<void>("webdav_check");
+export const webdavList = () => invoke<BackupEntry[]>("webdav_list");
+export const webdavBackup = () => invoke<string>("webdav_backup");
+export const webdavRestore = (name: string) =>
+  invoke<void>("webdav_restore", { name });
+export const webdavDelete = (name: string) =>
+  invoke<void>("webdav_delete", { name });
 
 export interface ServiceStatus {
   installed: boolean;
@@ -168,10 +232,10 @@ export const overrideMove = (id: string, up: boolean) =>
 
 export function relativeTime(unixSecs: number): string {
   const s = Math.max(0, Math.floor(Date.now() / 1000 - unixSecs));
-  if (s < 60) return "刚刚";
-  if (s < 3600) return `${Math.floor(s / 60)} 分钟前`;
-  if (s < 86400) return `${Math.floor(s / 3600)} 小时前`;
-  return `${Math.floor(s / 86400)} 天前`;
+  if (s < 60) return t("刚刚");
+  if (s < 3600) return t("{n} 分钟前", { n: Math.floor(s / 60) });
+  if (s < 86400) return t("{n} 小时前", { n: Math.floor(s / 3600) });
+  return t("{n} 天前", { n: Math.floor(s / 86400) });
 }
 
 export function formatRate(bytesPerSec: number): { value: string; unit: string } {

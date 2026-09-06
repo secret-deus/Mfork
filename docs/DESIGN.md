@@ -94,6 +94,15 @@ service.log / core.log
 - **M5 TUN 與服務**：Windows 提權服務、TUN 參數設置、DNS 設置
 - **M6 打磨**：內核升級、GeoData 更新、WebDAV 備份、主題、自動更新（tauri-updater）、多語言（zh-TW/zh-CN/en）
 
+全部里程碑已完成（2026-09）。M6 落地要點：
+
+- 內核自升級：`updater` 模塊從 GitHub Releases 取 stable（`latest`）/ alpha（`Prerelease-Alpha` tag）資源，經運行中的內核混合端口代理下載；新內核放在 `<app-data>/core-bin/`，`core_binary()` 優先取之，「恢復自帶版本」即刪除該目錄。已裝提權服務時升級會重新執行 `service install <新路徑>`（一次 UAC）重新釘定內核路徑。
+- GeoData：前端直接 `POST /upgrade/geo`。
+- 備份：`backup` 模塊打包 `profiles/`、`overrides/`、`app-config.json` 為 zip；WebDAV 走 MKCOL / PUT / PROPFIND / GET / DELETE，存於 `<url>/Mfork/`。恢復時保留本機 WebDAV 帳號。
+- 主題：CSS 變量 + `data-theme`，Monaco 同步切換。
+- 多語言：源字串即 key 的輕量 `t()`，托盤菜單由 Rust 側按 locale 重貼標籤。
+- 應用更新：`tauri-plugin-updater`，endpoint 為 GitHub Releases `latest.json`；CI 用 `tauri-apps/tauri-action` 簽名並建草稿 Release。
+
 ## 5. 風險與預案
 
 - **WebView2 缺失**（極老 Win10）：安裝器附帶 Evergreen Bootstrapper

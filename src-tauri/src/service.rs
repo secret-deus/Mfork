@@ -116,6 +116,26 @@ pub fn service_status(app: AppHandle) -> ServiceStatus {
     }
 }
 
+/// Reachable or at least registered with the SCM.
+pub fn installed(app: &AppHandle) -> bool {
+    ping(app) || service_registered()
+}
+
+/// Point an installed service at a different core binary (re-runs the
+/// installer elevated, which rewrites core-path.txt + token and restarts
+/// the service).
+pub fn repin(app: &AppHandle, core: &PathBuf) -> Result<(), String> {
+    let svc = service_exe(app)?;
+    run_elevated(&svc, &["install", &core.to_string_lossy()])?;
+    for _ in 0..10 {
+        if ping(app) {
+            return Ok(());
+        }
+        std::thread::sleep(Duration::from_millis(400));
+    }
+    Err("服务已重新安装但未响应".into())
+}
+
 /// Is the Windows service registered with the SCM (even if not running)?
 fn service_registered() -> bool {
     #[cfg(windows)]

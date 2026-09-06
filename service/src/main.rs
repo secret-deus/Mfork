@@ -239,9 +239,22 @@ mod win {
             Err(windows_service::Error::Winapi(e))
                 if e.raw_os_error() == Some(1073) => // ERROR_SERVICE_EXISTS
             {
-                manager
-                    .open_service(SERVICE_NAME, ServiceAccess::START)
-                    .map_err(|e| e.to_string())?
+                // re-install (e.g. after a core upgrade): the running
+                // instance holds the old token + core path, restart it
+                let s = manager
+                    .open_service(
+                        SERVICE_NAME,
+                        ServiceAccess::START | ServiceAccess::STOP | ServiceAccess::QUERY_STATUS,
+                    )
+                    .map_err(|e| e.to_string())?;
+                let _ = s.stop();
+                for _ in 0..50 {
+                    match s.query_status() {
+                        Ok(st) if st.current_state == ServiceState::Stopped => break,
+                        _ => std::thread::sleep(std::time::Duration::from_millis(100)),
+                    }
+                }
+                s
             }
             Err(e) => return Err(format!("create service: {e}")),
         };

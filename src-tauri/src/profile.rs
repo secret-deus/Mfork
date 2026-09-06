@@ -380,14 +380,20 @@ pub fn generate_config(
         "tun",
         "allow-lan",
         "bind-address",
+        "ipv6",
         "find-process-mode",
     ] {
         doc.remove(Value::String(key.into()));
     }
 
+    let s = crate::settings::load(app);
     doc.insert("mixed-port".into(), mixed_port.into());
-    doc.insert("bind-address".into(), "127.0.0.1".into());
-    doc.insert("allow-lan".into(), false.into());
+    doc.insert(
+        "bind-address".into(),
+        if s.allow_lan { "*" } else { "127.0.0.1" }.into(),
+    );
+    doc.insert("allow-lan".into(), s.allow_lan.into());
+    doc.insert("ipv6".into(), s.ipv6.into());
     doc.insert(
         "external-controller".into(),
         format!("127.0.0.1:{api_port}").into(),
@@ -397,7 +403,6 @@ pub fn generate_config(
 
     // GUI-managed TUN / DNS (settings page); the raw profile's tun block is
     // always stripped above, its dns block survives unless the user opts in
-    let s = crate::settings::load(app);
     if s.tun.enable {
         let mut tun = Mapping::new();
         tun.insert("enable".into(), true.into());

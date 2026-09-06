@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useApp } from "../store";
+import { t, useT } from "../i18n";
 import {
   ProfileMeta,
   ProfilesIndex,
@@ -25,11 +26,12 @@ const INTERVALS = [
 ];
 
 function expireText(expire: number): string {
-  if (!expire) return "长期有效";
-  return `到期 ${new Date(expire * 1000).toISOString().slice(0, 10)}`;
+  if (!expire) return t("长期有效");
+  return t("到期 {date}", { date: new Date(expire * 1000).toISOString().slice(0, 10) });
 }
 
 export default function Profiles() {
+  const t = useT();
   const { api, syncConfig } = useApp();
   const [index, setIndex] = useState<ProfilesIndex>({ active: null, items: [] });
   const [url, setUrl] = useState("");
@@ -86,20 +88,20 @@ export default function Profiles() {
     });
 
   const doDelete = (p: ProfileMeta) => {
-    if (!window.confirm(`删除订阅「${p.name}」？`)) return;
+    if (!window.confirm(t("删除订阅「{name}」？", { name: p.name }))) return;
     void run(p.id, async () => profileDelete(p.id));
   };
 
   return (
     <div className="flex h-full min-w-0 flex-col px-14 pb-8 pt-13">
       <div className="flex items-center justify-between">
-        <div className="cap">Mfork · 订阅 Profiles</div>
+        <div className="cap">{t("Mfork · 订阅 Profiles")}</div>
         <button
           onClick={() =>
             void run("import", async () => {
               const path = await open({
                 multiple: false,
-                filters: [{ name: "Clash 配置", extensions: ["yaml", "yml"] }],
+                filters: [{ name: t("Clash 配置"), extensions: ["yaml", "yml"] }],
               });
               if (typeof path !== "string") return;
               const meta = await profileImportLocal(path);
@@ -112,7 +114,7 @@ export default function Profiles() {
           disabled={busy !== null}
           className="text-xs text-mut hover:text-fg disabled:opacity-40"
         >
-          打开本地文件
+          {t("打开本地文件")}
         </button>
       </div>
 
@@ -127,7 +129,7 @@ export default function Profiles() {
           onKeyDown={(e) => {
             if (e.key === "Enter" && url.trim() && busy === null) void doImport();
           }}
-          placeholder="粘贴订阅链接（https://...）"
+          placeholder={t("粘贴订阅链接（https://...）")}
           className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-dim"
         />
         <button
@@ -135,7 +137,7 @@ export default function Profiles() {
           disabled={!url.trim() || busy !== null}
           className="text-[12.5px] font-semibold tracking-[1px] text-accent hover:text-fg disabled:opacity-40"
         >
-          {busy === "import" ? "下载中…" : "导入"}
+          {busy === "import" ? t("下载中…") : t("导入")}
         </button>
       </div>
 
@@ -146,8 +148,8 @@ export default function Profiles() {
       <div className="min-h-0 flex-1 overflow-y-auto">
         {index.items.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2">
-            <span className="cap">尚无订阅</span>
-            <span className="cap2">粘贴订阅链接导入，首个订阅将自动启用</span>
+            <span className="cap">{t("尚无订阅")}</span>
+            <span className="cap2">{t("粘贴订阅链接导入，首个订阅将自动启用")}</span>
           </div>
         ) : (
           index.items.map((p) => {
@@ -155,31 +157,31 @@ export default function Profiles() {
             const used = p.sub ? p.sub.upload + p.sub.download : 0;
             const pct = p.sub && p.sub.total > 0 ? Math.min(100, (used / p.sub.total) * 100) : 0;
             return (
-              <div key={p.id} className="flex flex-col gap-3 border-b border-[#16181d] py-6">
+              <div key={p.id} className="flex flex-col gap-3 border-b border-line-soft py-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     {active ? (
                       <span className="block h-[7px] w-[7px] rounded-full bg-accent" />
                     ) : null}
-                    <span className={`text-lg font-semibold ${active ? "" : "text-[#c9cdd4]"}`}>
+                    <span className={`text-lg font-semibold ${active ? "" : "text-fg-2"}`}>
                       {p.name}
                     </span>
                     {active ? (
-                      <span className="cap2 !text-accent">使用中</span>
+                      <span className="cap2 !text-accent">{t("使用中")}</span>
                     ) : (
                       <button
                         onClick={() => void doSelect(p)}
                         disabled={busy !== null}
                         className="cap2 hover:!text-fg disabled:opacity-40"
                       >
-                        启用
+                        {t("启用")}
                       </button>
                     )}
                   </div>
                   <div className="flex items-center gap-6">
                     {p.url ? (
-                      <div className="flex items-center gap-2" title="自动更新间隔">
-                        <span className="cap2">自动更新</span>
+                      <div className="flex items-center gap-2" title={t("自动更新间隔")}>
+                        <span className="cap2">{t("自动更新")}</span>
                         {INTERVALS.map((it) => (
                           <button
                             key={it.v}
@@ -192,7 +194,7 @@ export default function Profiles() {
                                 : "text-dim hover:text-mut"
                             }`}
                           >
-                            {it.label}
+                            {t(it.label)}
                           </button>
                         ))}
                       </div>
@@ -203,7 +205,7 @@ export default function Profiles() {
                         disabled={busy !== null}
                         className="text-xs text-mut hover:text-fg disabled:opacity-40"
                       >
-                        {busy === p.id ? "处理中…" : "更新"}
+                        {busy === p.id ? t("处理中…") : t("更新")}
                       </button>
                     ) : null}
                     <button
@@ -211,7 +213,7 @@ export default function Profiles() {
                       disabled={busy !== null}
                       className="text-xs text-dim hover:text-err disabled:opacity-40"
                     >
-                      删除
+                      {t("删除")}
                     </button>
                   </div>
                 </div>
@@ -226,19 +228,19 @@ export default function Profiles() {
                       </span>
                       <span className="flex-1" />
                       <span className="cap2">{expireText(p.sub.expire)}</span>
-                      <span className="cap2">更新于 {relativeTime(p.updated_at)}</span>
+                      <span className="cap2">{t("更新于 {time}", { time: relativeTime(p.updated_at) })}</span>
                     </div>
                     <div className="h-0.5 bg-line">
                       <div
-                        className={`h-full ${active ? "bg-accent" : "bg-[#3a3f47]"}`}
+                        className={`h-full ${active ? "bg-accent" : "bg-faint"}`}
                         style={{ width: `${pct}%` }}
                       />
                     </div>
                   </>
                 ) : (
                   <div className="flex gap-5">
-                    <span className="cap2">无流量信息</span>
-                    <span className="cap2">更新于 {relativeTime(p.updated_at)}</span>
+                    <span className="cap2">{t("无流量信息")}</span>
+                    <span className="cap2">{t("更新于 {time}", { time: relativeTime(p.updated_at) })}</span>
                   </div>
                 )}
               </div>

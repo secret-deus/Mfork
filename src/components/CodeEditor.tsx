@@ -2,6 +2,8 @@ import Editor, { loader } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
 import editorWorker from "monaco-editor/editor/editor.worker.js?worker";
 import tsWorker from "monaco-editor/language/typescript/ts.worker.js?worker";
+import { useEffect, useState } from "react";
+import { onThemeChange, resolvedTheme } from "../theme";
 
 // bundle monaco locally (no CDN — the app must work offline)
 self.MonacoEnvironment = {
@@ -25,6 +27,21 @@ monaco.editor.defineTheme("mfork-dark", {
   },
 });
 
+monaco.editor.defineTheme("mfork-light", {
+  base: "vs",
+  inherit: true,
+  rules: [],
+  colors: {
+    "editor.background": "#f7f7f8",
+    "editor.lineHighlightBackground": "#eeeff2",
+    "editorLineNumber.foreground": "#c8cbd1",
+    "editorLineNumber.activeForeground": "#6b7079",
+    "editorGutter.background": "#f7f7f8",
+    "editorWidget.background": "#ffffff",
+    "editorIndentGuide.background1": "#dcdee2",
+  },
+});
+
 export default function CodeEditor({
   language,
   value,
@@ -34,10 +51,12 @@ export default function CodeEditor({
   value: string;
   onChange: (v: string) => void;
 }) {
+  const [theme, setTheme] = useState(resolvedTheme());
+  useEffect(() => onThemeChange(setTheme), []);
   return (
     <Editor
       language={language}
-      theme="mfork-dark"
+      theme={theme === "light" ? "mfork-light" : "mfork-dark"}
       value={value}
       onChange={(v) => onChange(v ?? "")}
       options={{

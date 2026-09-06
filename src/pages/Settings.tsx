@@ -1,12 +1,39 @@
 import { useEffect, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
+import { getVersion } from "@tauri-apps/api/app";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { check as checkAppUpdate, Update } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 import { useApp } from "../store";
 import {
   AppSettings,
+  BackupEntry,
+  CoreRelease,
+  CoreVersionInfo,
   ServiceStatus,
+  apiPost,
+  apiPut,
+  backupExportLocal,
+  backupImportLocal,
+  configRegenerate,
+  coreCheckUpdate,
+  coreRevert,
+  coreUpgrade,
+  coreVersionInfo,
+  formatBytes,
   serviceInstall,
   serviceStatus,
   serviceUninstall,
+  webdavBackup,
+  webdavCheck,
+  webdavDelete,
+  webdavList,
+  webdavRestore,
 } from "../lib/core";
+import { LOCALES, useT } from "../i18n";
+import { THEMES } from "../theme";
+
+// ---------------------------------------------------------------- atoms
 
 function Toggle({
   on,
@@ -22,11 +49,11 @@ function Toggle({
       onClick={() => onChange(!on)}
       disabled={disabled}
       className={`relative h-[18px] w-[34px] shrink-0 rounded-full transition-colors ${
-        on ? "bg-accent" : "bg-[#23262d]"
+        on ? "bg-accent" : "bg-toggle-off"
       } disabled:opacity-40`}
     >
       <span
-        className={`absolute top-[2px] block h-[14px] w-[14px] rounded-full bg-[#e7e9ec] transition-all ${
+        className={`absolute top-[2px] block h-[14px] w-[14px] rounded-full bg-knob transition-all ${
           on ? "left-[18px]" : "left-[2px]"
         }`}
       />
@@ -41,17 +68,17 @@ function Row({
   last,
 }: {
   label: string;
-  sub?: string;
+  sub?: React.ReactNode;
   right: React.ReactNode;
   last?: boolean;
 }) {
   return (
     <div
-      className={`flex items-center justify-between gap-4 py-3.5 ${last ? "" : "border-b border-[#16181d]"}`}
+      className={`flex items-center justify-between gap-4 py-3.5 ${last ? "" : "border-b border-line-soft"}`}
     >
-      <div>
-        <div className="text-[12.5px] text-[#c3c8d0]">{label}</div>
-        {sub ? <div className="mt-0.5 text-[10.5px] text-dim">{sub}</div> : null}
+      <div className="min-w-0">
+        <div className="text-[12.5px] text-fg-2">{label}</div>
+        {sub ? <div className="mt-0.5 text-[10.5px] text-dim select-text">{sub}</div> : null}
       </div>
       {right}
     </div>
@@ -68,10 +95,38 @@ function Sect({ title, children }: { title: string; children: React.ReactNode })
 }
 
 const Val = ({ children }: { children: React.ReactNode }) => (
-  <span className="font-sg text-[12.5px] text-[#9aa0a8]">{children}</span>
+  <span className="font-sg text-[12.5px] text-fg-3">{children}</span>
 );
 
-const Soon = ({ m }: { m: string }) => <span className="cap2">{m}</span>;
+function Btn({
+  onClick,
+  disabled,
+  accent,
+  danger,
+  children,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  accent?: boolean;
+  danger?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`text-xs disabled:opacity-40 ${
+        accent
+          ? "text-accent hover:text-fg"
+          : danger
+            ? "text-mut hover:text-err"
+            : "text-mut hover:text-fg"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
 
 function Sel({
   value,
@@ -89,10 +144,10 @@ function Sel({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       disabled={disabled}
-      className="border-b border-[#23262d] bg-transparent pb-0.5 text-right font-sg text-[12px] text-[#9aa0a8] outline-none focus:border-accent disabled:opacity-40"
+      className="border-b border-line-strong bg-transparent pb-0.5 text-right font-sg text-[12px] text-fg-3 outline-none focus:border-accent disabled:opacity-40"
     >
       {options.map((o) => (
-        <option key={o.value} value={o.value} className="bg-[#0b0c0f]">
+        <option key={o.value} value={o.value}>
           {o.label}
         </option>
       ))}
@@ -100,20 +155,363 @@ function Sel({
   );
 }
 
-export default function Settings() {
-  const {
-    phase,
-    api,
-    version,
-    start,
-    stop,
-    settings,
-    autostart,
-    setSystemProxy,
-    updateSettings,
-    setAutostart,
-  } = useApp();
+const inputCls =
+  "border-b border-line-strong bg-transparent pb-0.5 text-right font-sg text-[11.5px] text-fg-3 outline-none focus:border-accent disabled:opacity-40";
 
+/** Text field that commits on blur / Enter. */
+function Field({
+  value,
+  onCommit,
+  disabled,
+  width = "w-56",
+  type = "text",
+  placeholder,
+}: {
+  value: string;
+  onCommit: (v: string) => void;
+  disabled?: boolean;
+  width?: string;
+  type?: string;
+  placeholder?: string;
+}) {
+  return (
+    <input
+      key={value}
+      type={type}
+      defaultValue={value}
+      placeholder={placeholder}
+      onBlur={(e) => {
+        if (e.target.value !== value) onCommit(e.target.value);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+      }}
+      disabled={disabled}
+      spellCheck={false}
+      className={`${width} ${inputCls}`}
+    />
+  );
+}
+
+// ---------------------------------------------------------------- sections
+
+function CoreSection() {
+  const t = useT();
+  const { phase, api, version, start, stop, restart, settings, updateSettings } = useApp();
+  const [info, setInfo] = useState<CoreVersionInfo | null>(null);
+  const [latest, setLatest] = useState<CoreRelease | null>(null);
+  const [busy, setBusy] = useState<"check" | "upgrade" | "revert" | "geo" | null>(null);
+  const [progress, setProgress] = useState<number | null>(null);
+  const [msg, setMsg] = useState<{ text: string; err?: boolean } | null>(null);
+
+  const refreshInfo = () => void coreVersionInfo().then(setInfo);
+  useEffect(refreshInfo, [phase]);
+  useEffect(() => {
+    const un = listen<{ received: number; total: number }>("core-upgrade-progress", (e) => {
+      const { received, total } = e.payload;
+      setProgress(total > 0 ? Math.min(100, Math.round((received / total) * 100)) : null);
+    });
+    const un2 = listen<string>("core-upgrade-warning", (e) =>
+      setMsg({ text: e.payload, err: true }),
+    );
+    return () => {
+      void un.then((f) => f());
+      void un2.then((f) => f());
+    };
+  }, []);
+
+  const channel = settings?.core_channel ?? "stable";
+  const current = version ?? info?.installed ?? null;
+
+  const doCheck = async () => {
+    setBusy("check");
+    setMsg(null);
+    setLatest(null);
+    try {
+      const rel = await coreCheckUpdate(channel);
+      setLatest(rel);
+      if (rel.version === current) setMsg({ text: t("已是最新版本") });
+    } catch (e) {
+      setMsg({ text: String(e), err: true });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const doUpgrade = async () => {
+    setBusy("upgrade");
+    setMsg(null);
+    setProgress(0);
+    try {
+      const v = await coreUpgrade(channel);
+      setLatest(null);
+      setMsg({ text: t("内核已更新到 {v}", { v }) });
+      await restart();
+    } catch (e) {
+      setMsg({ text: String(e), err: true });
+      void restart();
+    } finally {
+      setBusy(null);
+      setProgress(null);
+      refreshInfo();
+    }
+  };
+
+  const doRevert = async () => {
+    if (!window.confirm(t("恢复为安装包自带的内核版本？"))) return;
+    setBusy("revert");
+    setMsg(null);
+    try {
+      await coreRevert();
+      setLatest(null);
+      await restart();
+    } catch (e) {
+      setMsg({ text: String(e), err: true });
+    } finally {
+      setBusy(null);
+      refreshInfo();
+    }
+  };
+
+  const doGeo = async () => {
+    if (!api) return;
+    setBusy("geo");
+    setMsg(null);
+    try {
+      await apiPost(api, "/upgrade/geo");
+      setMsg({ text: t("GeoData 已更新") });
+    } catch (e) {
+      setMsg({ text: String(e), err: true });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const upgradeLabel =
+    busy === "upgrade"
+      ? progress != null && progress < 100
+        ? t("下载中 {p}%", { p: progress })
+        : t("安装中…")
+      : t("升级到 {v}", { v: latest?.version ?? "" });
+
+  return (
+    <Sect title={t("内核")}>
+      <Row
+        label={t("当前版本")}
+        sub={
+          phase === "running"
+            ? info?.upgraded
+              ? t("运行中 · 自升级版本")
+              : t("运行中 · 安装包自带")
+            : t("未运行")
+        }
+        right={<Val>{current ?? "—"}</Val>}
+      />
+      <Row
+        label={t("内核控制")}
+        right={
+          <div className="flex gap-5">
+            {phase === "running" ? (
+              <>
+                <Btn onClick={() => void restart()}>{t("重启")}</Btn>
+                <Btn onClick={() => void stop()}>{t("停止")}</Btn>
+              </>
+            ) : (
+              <Btn accent onClick={() => void start()} disabled={phase === "starting"}>
+                {t("启动")}
+              </Btn>
+            )}
+          </div>
+        }
+      />
+      <Row
+        label={t("版本通道")}
+        sub={t("Alpha 为每日构建，功能最新但可能不稳定")}
+        right={
+          <Sel
+            value={channel}
+            options={[
+              { value: "stable", label: "Stable" },
+              { value: "alpha", label: "Alpha" },
+            ]}
+            onChange={(v) => {
+              setLatest(null);
+              setMsg(null);
+              void updateSettings({ core_channel: v as AppSettings["core_channel"] });
+            }}
+            disabled={!settings || busy !== null}
+          />
+        }
+      />
+      <Row
+        label={t("内核升级")}
+        sub={
+          msg ? (
+            <span className={msg.err ? "text-err" : "text-ok"}>{msg.text}</span>
+          ) : latest ? (
+            t("{channel} 最新 {v} · {size}", {
+              channel: channel === "alpha" ? "Alpha" : "Stable",
+              v: latest.version,
+              size: formatBytes(latest.size),
+            })
+          ) : (
+            t("从 GitHub 下载最新内核（经内核代理）")
+          )
+        }
+        right={
+          <div className="flex gap-4">
+            {latest && latest.version !== current ? (
+              <Btn accent onClick={() => void doUpgrade()} disabled={busy !== null}>
+                {upgradeLabel}
+              </Btn>
+            ) : (
+              <Btn accent onClick={() => void doCheck()} disabled={busy !== null}>
+                {busy === "check" ? t("检查中…") : t("检查更新")}
+              </Btn>
+            )}
+            {info?.upgraded ? (
+              <Btn onClick={() => void doRevert()} disabled={busy !== null}>
+                {busy === "revert" ? t("处理中…") : t("恢复自带版本")}
+              </Btn>
+            ) : null}
+          </div>
+        }
+      />
+      <Row
+        label={t("GeoData 更新")}
+        sub={t("GeoIP / GeoSite / MMDB · 需要内核运行")}
+        right={
+          <Btn accent onClick={() => void doGeo()} disabled={phase !== "running" || busy !== null}>
+            {busy === "geo" ? t("更新中…") : t("立即更新")}
+          </Btn>
+        }
+        last
+      />
+    </Sect>
+  );
+}
+
+function NetworkSection() {
+  const t = useT();
+  const { api, settings, updateSettings, restart, phase } = useApp();
+  const apply = async (patch: Partial<AppSettings>) => {
+    await updateSettings(patch);
+    if (phase === "running") await restart();
+  };
+  return (
+    <Sect title={t("网络")}>
+      <Row
+        label={t("混合端口")}
+        sub={
+          settings?.mixed_port
+            ? t("HTTP 与 SOCKS5 共用 · 固定端口")
+            : t("HTTP 与 SOCKS5 共用 · 留空为每次随机")
+        }
+        right={
+          <div className="flex items-center gap-3">
+            {api ? <Val>{api.mixed_port}</Val> : null}
+            <Field
+              width="w-20"
+              placeholder={t("随机")}
+              value={settings?.mixed_port ? String(settings.mixed_port) : ""}
+              onCommit={(v) => {
+                const n = parseInt(v, 10);
+                void apply({ mixed_port: Number.isFinite(n) && n > 0 && n < 65536 ? n : 0 });
+              }}
+              disabled={!settings}
+            />
+          </div>
+        }
+      />
+      <Row
+        label={t("外部控制 API")}
+        right={<Val>{api ? `127.0.0.1:${api.port}` : "—"}</Val>}
+      />
+      <Row
+        label={t("允许局域网")}
+        sub={t("监听 0.0.0.0，同网段设备可使用本机代理")}
+        right={
+          <Toggle
+            on={settings?.allow_lan ?? false}
+            onChange={(v) => void apply({ allow_lan: v })}
+            disabled={!settings}
+          />
+        }
+      />
+      <Row
+        label="IPv6"
+        right={
+          <Toggle
+            on={settings?.ipv6 ?? false}
+            onChange={(v) => void apply({ ipv6: v })}
+            disabled={!settings}
+          />
+        }
+        last
+      />
+    </Sect>
+  );
+}
+
+function SystemSection() {
+  const t = useT();
+  const { api, settings, autostart, setSystemProxy, updateSettings, setAutostart } = useApp();
+  return (
+    <Sect title={t("系统")}>
+      <Row
+        label={t("系统代理")}
+        sub={
+          settings?.system_proxy && api
+            ? t("已指向 127.0.0.1:{port}", { port: api.mixed_port })
+            : t("接管系统 HTTP/SOCKS 代理设置")
+        }
+        right={
+          <Toggle
+            on={settings?.system_proxy ?? false}
+            onChange={(v) => void setSystemProxy(v)}
+            disabled={!settings}
+          />
+        }
+      />
+      <Row
+        label={t("代理绕过")}
+        sub={t("不经过代理的地址列表")}
+        right={
+          <Field
+            value={settings?.proxy_bypass ?? ""}
+            onCommit={(v) => void updateSettings({ proxy_bypass: v })}
+            disabled={!settings}
+          />
+        }
+      />
+      <Row
+        label={t("开机自启")}
+        right={<Toggle on={autostart} onChange={(v) => void setAutostart(v)} />}
+      />
+      <Row
+        label={t("静默启动")}
+        sub={t("启动时不显示窗口，仅驻留托盘")}
+        right={
+          <Toggle
+            on={settings?.silent_start ?? false}
+            onChange={(v) => void updateSettings({ silent_start: v })}
+            disabled={!settings}
+          />
+        }
+      />
+      <Row
+        label={t("关闭主窗口")}
+        sub={t("隐藏到托盘，从托盘菜单退出")}
+        right={<Val>{t("托盘")}</Val>}
+        last
+      />
+    </Sect>
+  );
+}
+
+function TunSection() {
+  const t = useT();
+  const { phase, settings, updateSettings, restart } = useApp();
   const [svc, setSvc] = useState<ServiceStatus | null>(null);
   const [svcBusy, setSvcBusy] = useState(false);
   const [svcError, setSvcError] = useState<string | null>(null);
@@ -122,13 +520,9 @@ export default function Settings() {
     void serviceStatus().then(setSvc);
   }, []);
 
-  // TUN / DNS changes need a core restart to take effect
   const applyAndRestart = async (patch: Partial<AppSettings>) => {
     await updateSettings(patch);
-    if (phase === "running") {
-      await stop();
-      await start();
-    }
+    if (phase === "running") await restart();
   };
 
   const svcAction = async (action: () => Promise<void>) => {
@@ -145,279 +539,505 @@ export default function Settings() {
   };
 
   const tun = settings?.tun;
+  return (
+    <Sect title={t("TUN 模式")}>
+      <Row
+        label={t("系统服务")}
+        sub={
+          svcError ??
+          (svc?.reachable
+            ? t("运行中 · 内核可以 SYSTEM 权限启动")
+            : svc?.installed
+              ? t("已安装但未响应")
+              : t("未安装 · TUN 需要提权服务（安装时弹出一次 UAC）"))
+        }
+        right={
+          <div className="flex gap-4">
+            {svc?.installed ? (
+              <Btn danger onClick={() => void svcAction(serviceUninstall)} disabled={svcBusy}>
+                {svcBusy ? t("处理中…") : t("卸载")}
+              </Btn>
+            ) : (
+              <Btn accent onClick={() => void svcAction(serviceInstall)} disabled={svcBusy}>
+                {svcBusy ? t("等待授权…") : t("安装服务")}
+              </Btn>
+            )}
+          </div>
+        }
+      />
+      <Row
+        label={t("启用 TUN")}
+        sub={
+          svc?.reachable
+            ? t("虚拟网卡接管全局流量；与其他代理客户端的 TUN/系统代理互斥")
+            : t("需先安装系统服务")
+        }
+        right={
+          <Toggle
+            on={tun?.enable ?? false}
+            onChange={(v) => {
+              if (tun) void applyAndRestart({ tun: { ...tun, enable: v } });
+            }}
+            disabled={!tun || (!svc?.reachable && !tun.enable)}
+          />
+        }
+      />
+      <Row
+        label={t("协议栈")}
+        right={
+          <Sel
+            value={tun?.stack ?? "mixed"}
+            options={[
+              { value: "mixed", label: "Mixed" },
+              { value: "gvisor", label: "gVisor" },
+              { value: "system", label: "System" },
+            ]}
+            onChange={(v) => {
+              if (tun) void applyAndRestart({ tun: { ...tun, stack: v as typeof tun.stack } });
+            }}
+            disabled={!tun}
+          />
+        }
+      />
+      <Row
+        label={t("严格路由")}
+        right={
+          <Toggle
+            on={tun?.strict_route ?? true}
+            onChange={(v) => {
+              if (tun) void applyAndRestart({ tun: { ...tun, strict_route: v } });
+            }}
+            disabled={!tun}
+          />
+        }
+      />
+      <Row
+        label={t("DNS 劫持")}
+        sub={t("接管发往任意 53 端口的查询")}
+        right={
+          <Toggle
+            on={tun?.dns_hijack ?? true}
+            onChange={(v) => {
+              if (tun) void applyAndRestart({ tun: { ...tun, dns_hijack: v } });
+            }}
+            disabled={!tun}
+          />
+        }
+        last
+      />
+    </Sect>
+  );
+}
+
+function DnsSection() {
+  const t = useT();
+  const { phase, settings, updateSettings, restart } = useApp();
+  const applyAndRestart = async (patch: Partial<AppSettings>) => {
+    await updateSettings(patch);
+    if (phase === "running") await restart();
+  };
   const dns = settings?.dns;
+  return (
+    <Sect title="DNS">
+      <Row
+        label={t("接管 DNS")}
+        sub={t("关闭时沿用订阅自带的 dns 配置")}
+        right={
+          <Toggle
+            on={dns?.enable ?? false}
+            onChange={(v) => {
+              if (dns) void applyAndRestart({ dns: { ...dns, enable: v } });
+            }}
+            disabled={!dns}
+          />
+        }
+      />
+      <Row
+        label={t("模式")}
+        right={
+          <Sel
+            value={dns?.enhanced_mode ?? "fake-ip"}
+            options={[
+              { value: "fake-ip", label: "Fake-IP" },
+              { value: "redir-host", label: "Redir-Host" },
+            ]}
+            onChange={(v) => {
+              if (dns)
+                void applyAndRestart({
+                  dns: { ...dns, enhanced_mode: v as typeof dns.enhanced_mode },
+                });
+            }}
+            disabled={!dns || !dns.enable}
+          />
+        }
+      />
+      <Row
+        label={t("上游 DNS")}
+        sub={t("逗号分隔，支持 DoH/DoT/IP")}
+        right={
+          <Field
+            width="w-64"
+            value={dns?.nameserver.join(", ") ?? ""}
+            onCommit={(v) => {
+              if (!dns) return;
+              const list = v
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean);
+              if (list.join() !== dns.nameserver.join())
+                void applyAndRestart({ dns: { ...dns, nameserver: list } });
+            }}
+            disabled={!dns || !dns.enable}
+          />
+        }
+        last
+      />
+    </Sect>
+  );
+}
+
+function AppearanceSection() {
+  const t = useT();
+  const { settings, updateSettings } = useApp();
+  return (
+    <Sect title={t("外观")}>
+      <Row
+        label={t("主题")}
+        right={
+          <Sel
+            value={settings?.theme ?? "dark"}
+            options={THEMES.map((th) => ({ value: th.value, label: t(th.label) }))}
+            onChange={(v) => void updateSettings({ theme: v as AppSettings["theme"] })}
+            disabled={!settings}
+          />
+        }
+      />
+      <Row
+        label={t("语言")}
+        right={
+          <Sel
+            value={settings?.locale ?? "zh-CN"}
+            options={LOCALES}
+            onChange={(v) => void updateSettings({ locale: v as AppSettings["locale"] })}
+            disabled={!settings}
+          />
+        }
+        last
+      />
+    </Sect>
+  );
+}
+
+function BackupSection() {
+  const t = useT();
+  const { api, settings, updateSettings, reloadSettings, syncConfig } = useApp();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ text: string; err?: boolean } | null>(null);
+  const [list, setList] = useState<BackupEntry[] | null>(null);
+
+  const wd = settings?.webdav;
+  const setWd = (patch: Partial<NonNullable<typeof wd>>) => {
+    if (wd) void updateSettings({ webdav: { ...wd, ...patch } });
+  };
+
+  const run = async (key: string, fn: () => Promise<string | void>) => {
+    setBusy(key);
+    setMsg(null);
+    try {
+      const r = await fn();
+      if (r) setMsg({ text: r });
+    } catch (e) {
+      setMsg({ text: String(e), err: true });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  /** After a restore: settings + profiles changed on disk → reload + hot-reload core. */
+  const afterRestore = async () => {
+    await reloadSettings();
+    const path = await configRegenerate();
+    if (path && api) {
+      await apiPut(api, "/configs?force=true", { path });
+      await syncConfig();
+    }
+    return t("已恢复，订阅与设置已重新加载");
+  };
+
+  const exportLocal = () =>
+    run("export", async () => {
+      const path = await save({
+        defaultPath: "mfork-backup.zip",
+        filters: [{ name: "Zip", extensions: ["zip"] }],
+      });
+      if (!path) return;
+      await backupExportLocal(path);
+      return t("已导出到 {path}", { path });
+    });
+
+  const importLocal = () =>
+    run("import", async () => {
+      const path = await open({ multiple: false, filters: [{ name: "Zip", extensions: ["zip"] }] });
+      if (typeof path !== "string") return;
+      if (!window.confirm(t("从备份恢复会覆盖当前订阅、覆写与设置，继续？"))) return;
+      await backupImportLocal(path);
+      return afterRestore();
+    });
+
+  const refreshList = () =>
+    run("list", async () => {
+      setList(await webdavList());
+    });
 
   return (
+    <Sect title={t("备份")}>
+      <Row
+        label={t("本地备份")}
+        sub={t("订阅、覆写与应用设置打包为 zip")}
+        right={
+          <div className="flex gap-4">
+            <Btn accent onClick={() => void exportLocal()} disabled={busy !== null}>
+              {t("导出")}
+            </Btn>
+            <Btn onClick={() => void importLocal()} disabled={busy !== null}>
+              {t("导入恢复")}
+            </Btn>
+          </div>
+        }
+      />
+      <Row
+        label={t("WebDAV 地址")}
+        sub={t("备份存放在该地址下的 Mfork/ 目录")}
+        right={
+          <Field
+            width="w-64"
+            placeholder="https://dav.example.com/dav"
+            value={wd?.url ?? ""}
+            onCommit={(v) => setWd({ url: v.trim() })}
+            disabled={!wd}
+          />
+        }
+      />
+      <Row
+        label={t("用户名")}
+        right={
+          <Field
+            width="w-40"
+            value={wd?.username ?? ""}
+            onCommit={(v) => setWd({ username: v })}
+            disabled={!wd}
+          />
+        }
+      />
+      <Row
+        label={t("密码")}
+        right={
+          <Field
+            width="w-40"
+            type="password"
+            value={wd?.password ?? ""}
+            onCommit={(v) => setWd({ password: v })}
+            disabled={!wd}
+          />
+        }
+      />
+      <Row
+        label={t("WebDAV 备份")}
+        sub={
+          msg ? (
+            <span className={msg.err ? "text-err" : "text-ok"}>{msg.text}</span>
+          ) : (
+            t("先测试连接，再备份或查看已有备份")
+          )
+        }
+        right={
+          <div className="flex gap-4">
+            <Btn
+              onClick={() => void run("check", async () => (await webdavCheck(), t("连接正常")))}
+              disabled={busy !== null || !wd?.url}
+            >
+              {busy === "check" ? t("测试中…") : t("测试连接")}
+            </Btn>
+            <Btn
+              accent
+              onClick={() =>
+                void run("backup", async () => {
+                  const name = await webdavBackup();
+                  setList(null);
+                  return t("已上传 {name}", { name });
+                })
+              }
+              disabled={busy !== null || !wd?.url}
+            >
+              {busy === "backup" ? t("上传中…") : t("立即备份")}
+            </Btn>
+            <Btn onClick={() => void refreshList()} disabled={busy !== null || !wd?.url}>
+              {busy === "list" ? t("加载中…") : t("查看备份")}
+            </Btn>
+          </div>
+        }
+        last={list === null}
+      />
+      {list !== null ? (
+        <div className="py-2">
+          {list.length === 0 ? (
+            <div className="cap2 py-2">{t("云端暂无备份")}</div>
+          ) : (
+            list.map((b, i) => (
+              <div
+                key={b.name}
+                className={`flex items-center justify-between gap-4 py-2 ${
+                  i === list.length - 1 ? "" : "border-b border-line-faint"
+                }`}
+              >
+                <div className="min-w-0">
+                  <div className="truncate font-sg text-[11.5px] text-fg-3">{b.name}</div>
+                  <div className="text-[10px] text-dim">
+                    {formatBytes(b.size)}
+                    {b.modified ? ` · ${b.modified}` : ""}
+                  </div>
+                </div>
+                <div className="flex shrink-0 gap-4">
+                  <Btn
+                    accent
+                    onClick={() =>
+                      void run(`restore:${b.name}`, async () => {
+                        if (!window.confirm(t("从备份恢复会覆盖当前订阅、覆写与设置，继续？")))
+                          return;
+                        await webdavRestore(b.name);
+                        return afterRestore();
+                      })
+                    }
+                    disabled={busy !== null}
+                  >
+                    {busy === `restore:${b.name}` ? t("恢复中…") : t("恢复")}
+                  </Btn>
+                  <Btn
+                    danger
+                    onClick={() =>
+                      void run(`delete:${b.name}`, async () => {
+                        if (!window.confirm(t("删除云端备份「{name}」？", { name: b.name }))) return;
+                        await webdavDelete(b.name);
+                        setList((l) => l?.filter((x) => x.name !== b.name) ?? null);
+                      })
+                    }
+                    disabled={busy !== null}
+                  >
+                    {t("删除")}
+                  </Btn>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      ) : null}
+    </Sect>
+  );
+}
+
+function AboutSection() {
+  const t = useT();
+  const [appVersion, setAppVersion] = useState("");
+  const [update, setUpdate] = useState<Update | null>(null);
+  const [busy, setBusy] = useState<"check" | "install" | null>(null);
+  const [progress, setProgress] = useState<number | null>(null);
+  const [msg, setMsg] = useState<{ text: string; err?: boolean } | null>(null);
+
+  useEffect(() => {
+    void getVersion().then(setAppVersion);
+  }, []);
+
+  const doCheck = async () => {
+    setBusy("check");
+    setMsg(null);
+    try {
+      const u = await checkAppUpdate({ timeout: 15000 });
+      if (u) {
+        setUpdate(u);
+        setMsg({ text: t("发现新版本 {v}", { v: u.version }) });
+      } else {
+        setMsg({ text: t("已是最新版本") });
+      }
+    } catch (e) {
+      setMsg({ text: t("检查更新失败：{e}", { e: String(e) }), err: true });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const doInstall = async () => {
+    if (!update) return;
+    setBusy("install");
+    setMsg(null);
+    let total = 0;
+    let got = 0;
+    try {
+      await update.downloadAndInstall((ev) => {
+        if (ev.event === "Started") total = ev.data.contentLength ?? 0;
+        else if (ev.event === "Progress") {
+          got += ev.data.chunkLength;
+          if (total > 0) setProgress(Math.min(100, Math.round((got / total) * 100)));
+        } else if (ev.event === "Finished") setProgress(100);
+      });
+      setMsg({ text: t("安装完成，正在重启…") });
+      await relaunch();
+    } catch (e) {
+      setMsg({ text: String(e), err: true });
+    } finally {
+      setBusy(null);
+      setProgress(null);
+    }
+  };
+
+  return (
+    <Sect title={t("关于")}>
+      <Row label={t("Mfork 版本")} right={<Val>{appVersion || "—"}</Val>} />
+      <Row
+        label={t("应用更新")}
+        sub={
+          msg ? (
+            <span className={msg.err ? "text-err" : "text-ok"}>{msg.text}</span>
+          ) : (
+            t("从 GitHub Releases 检查新版本")
+          )
+        }
+        right={
+          update ? (
+            <Btn accent onClick={() => void doInstall()} disabled={busy !== null}>
+              {busy === "install"
+                ? progress != null && progress < 100
+                  ? t("下载中 {p}%", { p: progress })
+                  : t("安装中…")
+                : t("下载并安装")}
+            </Btn>
+          ) : (
+            <Btn accent onClick={() => void doCheck()} disabled={busy !== null}>
+              {busy === "check" ? t("检查中…") : t("检查更新")}
+            </Btn>
+          )
+        }
+        last
+      />
+    </Sect>
+  );
+}
+
+// ---------------------------------------------------------------- page
+
+export default function Settings() {
+  const t = useT();
+  return (
     <div className="flex h-full min-w-0 flex-col overflow-y-auto px-14 pb-8 pt-13">
-      <div className="cap">Mfork · 设置 Settings</div>
+      <div className="cap">{t("Mfork · 设置 Settings")}</div>
       <div className="mt-7 grid grid-cols-2 content-start gap-x-16 gap-y-8">
-        <Sect title="内核">
-          <Row
-            label="当前版本"
-            sub={phase === "running" ? "运行中" : "未运行"}
-            right={<Val>{version ?? "—"}</Val>}
-          />
-          <Row
-            label="内核控制"
-            right={
-              <div className="flex gap-5">
-                {phase === "running" ? (
-                  <>
-                    <button
-                      onClick={async () => {
-                        await stop();
-                        await start();
-                      }}
-                      className="text-xs text-mut hover:text-fg"
-                    >
-                      重启
-                    </button>
-                    <button onClick={() => void stop()} className="text-xs text-mut hover:text-fg">
-                      停止
-                    </button>
-                  </>
-                ) : (
-                  <button onClick={() => void start()} className="text-xs text-accent hover:text-fg">
-                    启动
-                  </button>
-                )}
-              </div>
-            }
-          />
-          <Row label="版本通道" right={<Val>Stable</Val>} />
-          <Row label="内核升级 / GeoData 更新" right={<Soon m="M6" />} last />
-        </Sect>
-
-        <Sect title="网络">
-          <Row
-            label="混合端口"
-            sub="HTTP 与 SOCKS5 共用（当前为随机端口）"
-            right={<Val>{api?.mixed_port ?? "—"}</Val>}
-          />
-          <Row
-            label="外部控制 API"
-            right={<Val>{api ? `127.0.0.1:${api.port}` : "—"}</Val>}
-          />
-          <Row label="固定端口 / 允许局域网 / IPv6" right={<Soon m="M2" />} last />
-        </Sect>
-
-        <Sect title="系统">
-          <Row
-            label="系统代理"
-            sub={
-              settings?.system_proxy && api
-                ? `已指向 127.0.0.1:${api.mixed_port}`
-                : "接管系统 HTTP/SOCKS 代理设置"
-            }
-            right={
-              <Toggle
-                on={settings?.system_proxy ?? false}
-                onChange={(v) => void setSystemProxy(v)}
-                disabled={!settings}
-              />
-            }
-          />
-          <Row
-            label="代理绕过"
-            sub="不经过代理的地址列表"
-            right={
-              <input
-                key={settings?.proxy_bypass ?? ""}
-                defaultValue={settings?.proxy_bypass ?? ""}
-                onBlur={(e) => {
-                  if (settings && e.target.value !== settings.proxy_bypass)
-                    void updateSettings({ proxy_bypass: e.target.value });
-                }}
-                disabled={!settings}
-                spellCheck={false}
-                className="w-56 border-b border-[#23262d] bg-transparent pb-0.5 text-right font-sg text-[11.5px] text-[#9aa0a8] outline-none focus:border-accent"
-              />
-            }
-          />
-          <Row
-            label="开机自启"
-            right={<Toggle on={autostart} onChange={(v) => void setAutostart(v)} />}
-          />
-          <Row
-            label="静默启动"
-            sub="启动时不显示窗口，仅驻留托盘"
-            right={
-              <Toggle
-                on={settings?.silent_start ?? false}
-                onChange={(v) => void updateSettings({ silent_start: v })}
-                disabled={!settings}
-              />
-            }
-          />
-          <Row
-            label="关闭主窗口"
-            sub="隐藏到托盘，从托盘菜单退出"
-            right={<Val>托盘</Val>}
-            last
-          />
-        </Sect>
-
-        <Sect title="TUN 模式">
-          <Row
-            label="系统服务"
-            sub={
-              svcError ??
-              (svc?.reachable
-                ? "运行中 · 内核可以 SYSTEM 权限启动"
-                : svc?.installed
-                  ? "已安装但未响应"
-                  : "未安装 · TUN 需要提权服务（安装时弹出一次 UAC）")
-            }
-            right={
-              <div className="flex gap-4">
-                {svc?.installed ? (
-                  <button
-                    onClick={() => void svcAction(serviceUninstall)}
-                    disabled={svcBusy}
-                    className="text-xs text-mut hover:text-err disabled:opacity-50"
-                  >
-                    {svcBusy ? "处理中…" : "卸载"}
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => void svcAction(serviceInstall)}
-                    disabled={svcBusy}
-                    className="text-xs text-accent hover:text-fg disabled:opacity-50"
-                  >
-                    {svcBusy ? "等待授权…" : "安装服务"}
-                  </button>
-                )}
-              </div>
-            }
-          />
-          <Row
-            label="启用 TUN"
-            sub={
-              svc?.reachable
-                ? "虚拟网卡接管全局流量；与其他代理客户端的 TUN/系统代理互斥"
-                : "需先安装系统服务"
-            }
-            right={
-              <Toggle
-                on={tun?.enable ?? false}
-                onChange={(v) => {
-                  if (tun) void applyAndRestart({ tun: { ...tun, enable: v } });
-                }}
-                disabled={!tun || (!svc?.reachable && !tun.enable)}
-              />
-            }
-          />
-          <Row
-            label="协议栈"
-            right={
-              <Sel
-                value={tun?.stack ?? "mixed"}
-                options={[
-                  { value: "mixed", label: "Mixed" },
-                  { value: "gvisor", label: "gVisor" },
-                  { value: "system", label: "System" },
-                ]}
-                onChange={(v) => {
-                  if (tun) void applyAndRestart({ tun: { ...tun, stack: v as typeof tun.stack } });
-                }}
-                disabled={!tun}
-              />
-            }
-          />
-          <Row
-            label="严格路由"
-            right={
-              <Toggle
-                on={tun?.strict_route ?? true}
-                onChange={(v) => {
-                  if (tun) void applyAndRestart({ tun: { ...tun, strict_route: v } });
-                }}
-                disabled={!tun}
-              />
-            }
-          />
-          <Row
-            label="DNS 劫持"
-            sub="接管发往任意 53 端口的查询"
-            right={
-              <Toggle
-                on={tun?.dns_hijack ?? true}
-                onChange={(v) => {
-                  if (tun) void applyAndRestart({ tun: { ...tun, dns_hijack: v } });
-                }}
-                disabled={!tun}
-              />
-            }
-            last
-          />
-        </Sect>
-
-        <Sect title="DNS">
-          <Row
-            label="接管 DNS"
-            sub="关闭时沿用订阅自带的 dns 配置"
-            right={
-              <Toggle
-                on={dns?.enable ?? false}
-                onChange={(v) => {
-                  if (dns) void applyAndRestart({ dns: { ...dns, enable: v } });
-                }}
-                disabled={!dns}
-              />
-            }
-          />
-          <Row
-            label="模式"
-            right={
-              <Sel
-                value={dns?.enhanced_mode ?? "fake-ip"}
-                options={[
-                  { value: "fake-ip", label: "Fake-IP" },
-                  { value: "redir-host", label: "Redir-Host" },
-                ]}
-                onChange={(v) => {
-                  if (dns)
-                    void applyAndRestart({
-                      dns: { ...dns, enhanced_mode: v as typeof dns.enhanced_mode },
-                    });
-                }}
-                disabled={!dns || !dns.enable}
-              />
-            }
-          />
-          <Row
-            label="上游 DNS"
-            sub="逗号分隔，支持 DoH/DoT/IP"
-            right={
-              <input
-                key={dns?.nameserver.join(",") ?? ""}
-                defaultValue={dns?.nameserver.join(", ") ?? ""}
-                onBlur={(e) => {
-                  if (!dns) return;
-                  const list = e.target.value
-                    .split(",")
-                    .map((s) => s.trim())
-                    .filter(Boolean);
-                  if (list.join() !== dns.nameserver.join())
-                    void applyAndRestart({ dns: { ...dns, nameserver: list } });
-                }}
-                disabled={!dns || !dns.enable}
-                spellCheck={false}
-                className="w-64 border-b border-[#23262d] bg-transparent pb-0.5 text-right font-sg text-[11px] text-[#9aa0a8] outline-none focus:border-accent disabled:opacity-40"
-              />
-            }
-            last
-          />
-        </Sect>
-
-        <Sect title="外观">
-          <Row label="主题" right={<Val>深色</Val>} />
-          <Row label="语言" right={<Val>简体中文</Val>} last />
-        </Sect>
-
-        <Sect title="备份">
-          <Row label="WebDAV 备份与恢复" right={<Soon m="M6" />} last />
-        </Sect>
+        <CoreSection />
+        <NetworkSection />
+        <SystemSection />
+        <TunSection />
+        <DnsSection />
+        <AppearanceSection />
+        <BackupSection />
+        <AboutSection />
       </div>
     </div>
   );

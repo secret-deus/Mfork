@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useApp } from "../store";
+import { useT } from "../i18n";
 
 const LEVELS = ["all", "info", "warning", "error", "debug"] as const;
 const COLOR: Record<string, string> = {
@@ -10,6 +11,7 @@ const COLOR: Record<string, string> = {
 };
 
 export default function Logs() {
+  const t = useT();
   const { phase, logs, logsPaused, setLogsPaused, clearLogs } = useApp();
   const [level, setLevel] = useState<(typeof LEVELS)[number]>("all");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -32,7 +34,7 @@ export default function Logs() {
   return (
     <div className="flex h-full min-w-0 flex-col px-14 pb-6 pt-13">
       <div className="flex items-center justify-between">
-        <div className="cap">Mfork · 日志 Logs</div>
+        <div className="cap">{t("Mfork · 日志 Logs")}</div>
         <div className="flex items-center gap-5">
           {LEVELS.map((lv) => (
             <button
@@ -50,10 +52,10 @@ export default function Logs() {
             onClick={() => setLogsPaused(!logsPaused)}
             className={`text-xs ${logsPaused ? "text-warn" : "text-mut hover:text-fg"}`}
           >
-            {logsPaused ? "继续" : "暂停"}
+            {logsPaused ? t("继续") : t("暂停")}
           </button>
           <button onClick={clearLogs} className="text-xs text-mut hover:text-fg">
-            清空
+            {t("清空")}
           </button>
         </div>
       </div>
@@ -64,11 +66,11 @@ export default function Logs() {
       >
         {phase !== "running" && shown.length === 0 ? (
           <div className="flex h-full items-center justify-center">
-            <span className="cap">内核未运行</span>
+            <span className="cap">{t("内核未运行")}</span>
           </div>
         ) : shown.length === 0 ? (
           <div className="flex h-32 items-center justify-center">
-            <span className="cap">暂无日志</span>
+            <span className="cap">{t("暂无日志")}</span>
           </div>
         ) : (
           shown.map((l) => (
@@ -79,7 +81,7 @@ export default function Logs() {
               <span className={`w-14 shrink-0 uppercase tracking-[1px] text-[10px] pt-0.5 ${COLOR[l.type] ?? "text-mut"}`}>
                 {l.type}
               </span>
-              <span className="break-all text-[#b9bec7]">{l.payload}</span>
+              <span className="break-all text-fg-3">{l.payload}</span>
             </div>
           ))
         )}

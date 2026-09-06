@@ -7,10 +7,21 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{AppHandle, Emitter, Manager, Wry};
 
 pub struct Items {
+    show: MenuItem<Wry>,
     rule: CheckMenuItem<Wry>,
     global: CheckMenuItem<Wry>,
     direct: CheckMenuItem<Wry>,
     sysproxy: CheckMenuItem<Wry>,
+    quit: MenuItem<Wry>,
+}
+
+/// Menu labels per locale: [show, rule, global, direct, sysproxy, quit]
+fn labels(locale: &str) -> [&'static str; 6] {
+    match locale {
+        "en" => ["Show Mfork", "Rule Mode", "Global Mode", "Direct Mode", "System Proxy", "Quit"],
+        "zh-TW" => ["顯示 Mfork", "規則模式", "全局模式", "直連模式", "系統代理", "退出"],
+        _ => ["显示 Mfork", "规则模式", "全局模式", "直连模式", "系统代理", "退出"],
+    }
 }
 
 #[derive(Default)]
@@ -20,19 +31,21 @@ pub struct TrayState(pub Mutex<Option<Items>>);
 static LAST_MODE: Mutex<Option<String>> = Mutex::new(None);
 
 pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
-    let show = MenuItem::with_id(app, "show", "显示 Mfork", true, None::<&str>)?;
-    let rule = CheckMenuItem::with_id(app, "mode-rule", "规则模式", true, false, None::<&str>)?;
-    let global = CheckMenuItem::with_id(app, "mode-global", "全局模式", true, false, None::<&str>)?;
-    let direct = CheckMenuItem::with_id(app, "mode-direct", "直连模式", true, false, None::<&str>)?;
+    let settings = crate::settings::load(app);
+    let l = labels(&settings.locale);
+    let show = MenuItem::with_id(app, "show", l[0], true, None::<&str>)?;
+    let rule = CheckMenuItem::with_id(app, "mode-rule", l[1], true, false, None::<&str>)?;
+    let global = CheckMenuItem::with_id(app, "mode-global", l[2], true, false, None::<&str>)?;
+    let direct = CheckMenuItem::with_id(app, "mode-direct", l[3], true, false, None::<&str>)?;
     let sysproxy = CheckMenuItem::with_id(
         app,
         "sys-proxy",
-        "系统代理",
+        l[4],
         true,
-        crate::settings::load(app).system_proxy,
+        settings.system_proxy,
         None::<&str>,
     )?;
-    let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", l[5], true, None::<&str>)?;
 
     let menu = Menu::with_items(
         app,
@@ -84,10 +97,12 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
     builder.build(app)?;
 
     *app.state::<TrayState>().0.lock().unwrap() = Some(Items {
+        show,
         rule,
         global,
         direct,
         sysproxy,
+        quit,
     });
     Ok(())
 }
@@ -97,6 +112,21 @@ pub fn show_window(app: &AppHandle) {
         let _ = w.show();
         let _ = w.unminimize();
         let _ = w.set_focus();
+    }
+}
+
+/// Relabel the menu for a new UI language.
+pub fn set_locale(app: &AppHandle, locale: &str) {
+    let l = labels(locale);
+    let state = app.state::<TrayState>();
+    let guard = state.0.lock().unwrap();
+    if let Some(items) = guard.as_ref() {
+        let _ = items.show.set_text(l[0]);
+        let _ = items.rule.set_text(l[1]);
+        let _ = items.global.set_text(l[2]);
+        let _ = items.direct.set_text(l[3]);
+        let _ = items.sysproxy.set_text(l[4]);
+        let _ = items.quit.set_text(l[5]);
     }
 }
 

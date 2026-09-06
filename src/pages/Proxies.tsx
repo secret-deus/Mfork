@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useApp } from "../store";
+import { useT } from "../i18n";
 import { apiGet, apiPut } from "../lib/core";
 import { ProxyGroup, ProxyNode } from "../lib/types";
 
@@ -26,6 +27,7 @@ const SORTS: { key: SortBy; label: string }[] = [
 ];
 
 export default function Proxies() {
+  const t = useT();
   const { api, phase } = useApp();
   const [groups, setGroups] = useState<ProxyGroup[]>([]);
   const [nodes, setNodes] = useState<Record<string, ProxyNode>>({});
@@ -102,10 +104,10 @@ export default function Proxies() {
   return (
     <div className="flex h-full min-w-0 flex-col px-14 pb-8 pt-13">
       <div className="flex items-center justify-between">
-        <div className="cap">Mfork · 代理 Proxies</div>
+        <div className="cap">{t("Mfork · 代理 Proxies")}</div>
         <div className="flex items-center gap-5">
           <div className="flex items-center gap-3">
-            <span className="cap2">排序</span>
+            <span className="cap2">{t("排序")}</span>
             {SORTS.map((s) => (
               <button
                 key={s.key}
@@ -114,7 +116,7 @@ export default function Proxies() {
                   sortBy === s.key ? "text-fg" : "text-dim hover:text-mut"
                 }`}
               >
-                {s.label}
+                {t(s.label)}
               </button>
             ))}
           </div>
@@ -125,7 +127,7 @@ export default function Proxies() {
               hideUnavail ? "text-fg" : "text-dim hover:text-mut"
             }`}
           >
-            隐藏不可用
+            {t("隐藏不可用")}
           </button>
           <div className="h-3.5 w-px bg-line" />
           <button
@@ -133,7 +135,7 @@ export default function Proxies() {
             className="text-xs text-mut hover:text-fg"
             disabled={phase !== "running"}
           >
-            刷新
+            {t("刷新")}
           </button>
         </div>
       </div>
@@ -141,26 +143,26 @@ export default function Proxies() {
       <div className="mt-6 min-h-0 flex-1 overflow-y-auto">
         {phase !== "running" ? (
           <div className="flex h-full items-center justify-center">
-            <span className="cap">内核未运行</span>
+            <span className="cap">{t("内核未运行")}</span>
           </div>
         ) : groups.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2">
-            <span className="cap">当前配置无策略组</span>
-            <span className="cap2">导入订阅后（M2）此处显示策略组与节点</span>
+            <span className="cap">{t("当前配置无策略组")}</span>
+            <span className="cap2">{t("导入订阅后此处显示策略组与节点")}</span>
           </div>
         ) : (
           groups.map((g) => {
             const open = expanded === g.name;
             return (
-              <div key={g.name} className="border-b border-[#16181d]">
+              <div key={g.name} className="border-b border-line-soft">
                 <div
                   className="flex cursor-pointer items-center justify-between py-4"
                   onClick={() => setExpanded(open ? null : g.name)}
                 >
                   <div className="flex items-baseline gap-3.5">
-                    <span className="text-[15px] font-semibold text-[#d6d9de]">{g.name}</span>
+                    <span className="text-[15px] font-semibold text-fg-2">{g.name}</span>
                     <span className="cap2">{g.type}</span>
-                    <span className="cap2">{g.all.length} nodes</span>
+                    <span className="cap2">{t("{n} nodes", { n: g.all.length })}</span>
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="text-xs text-mut">{g.now}</span>
@@ -172,7 +174,7 @@ export default function Proxies() {
                       className="text-xs text-accent hover:text-fg disabled:opacity-50"
                       disabled={testing === g.name}
                     >
-                      {testing === g.name ? "测速中…" : "测速"}
+                      {testing === g.name ? t("测速中…") : t("测速")}
                     </button>
                     <svg
                       width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -193,13 +195,13 @@ export default function Proxies() {
                         <button
                           key={name}
                           onClick={() => void select(g.name, name)}
-                          className="flex items-center justify-between border-b border-[#131519] py-3 text-left"
+                          className="flex items-center justify-between border-b border-line-faint py-3 text-left"
                         >
                           <span className="flex min-w-0 items-center gap-2.5">
                             {selected ? (
                               <span className="block h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
                             ) : null}
-                            <span className={`truncate text-[13px] ${selected ? "text-fg" : "text-[#b6bac2]"}`}>
+                            <span className={`truncate text-[13px] ${selected ? "text-fg" : "text-fg-3"}`}>
                               {name}
                             </span>
                             <span className="cap2 shrink-0">{n?.type ?? ""}</span>

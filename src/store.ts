@@ -17,6 +17,8 @@ import {
   wsUrl,
 } from "./lib/core";
 import { ConnectionsSnapshot, ConnItem, LogLine } from "./lib/types";
+import { isLocale, t, useLocale } from "./i18n";
+import { applyTheme } from "./theme";
 
 export type CorePhase = "stopped" | "starting" | "running" | "error";
 export type ProxyMode = "rule" | "global" | "direct";
@@ -44,6 +46,9 @@ interface AppState {
   syncConfig: () => Promise<void>;
   setSystemProxy: (enable: boolean) => Promise<void>;
   updateSettings: (patch: Partial<AppSettings>) => Promise<void>;
+  /** settings changed on disk behind our back (backup restore): reload */
+  reloadSettings: () => Promise<void>;
+  restart: () => Promise<void>;
   setAutostart: (enable: boolean) => Promise<void>;
   init: () => Promise<void>;
 }
@@ -134,6 +139,12 @@ function openStreams(
 
 let initialized = false;
 
+/** Mirror persisted appearance settings into the DOM / i18n store. */
+function applyAppearance(s: AppSettings) {
+  applyTheme(s.theme);
+  if (isLocale(s.locale)) useLocale.getState().setLocale(s.locale);
+}
+
 async function apiPatchlessReload(api: ApiInfo, path: string) {
   const { apiPut } = await import("./lib/core");
   await apiPut(api, "/configs?force=true", { path });
@@ -217,7 +228,19 @@ export const useApp = create<AppState>((set, get) => ({
     const cur = get().settings ?? (await settingsGet());
     const next = { ...cur, ...patch };
     set({ settings: next });
+    applyAppearance(next);
     await settingsSet(next);
+  },
+
+  async reloadSettings() {
+    const s = await settingsGet();
+    set({ settings: s });
+    applyAppearance(s);
+  },
+
+  async restart() {
+    if (get().phase === "running") await get().stop();
+    await get().start();
   },
 
   async setAutostart(enable) {
@@ -236,7 +259,10 @@ export const useApp = create<AppState>((set, get) => ({
     if (initialized) return;
     initialized = true;
     // system settings + autostart state
-    void settingsGet().then((s) => set({ settings: s }));
+    void settingsGet().then((s) => {
+      set({ settings: s });
+      applyAppearance(s);
+    });
     void autostartGet().then((a) => set({ autostart: a }));
     // tray menu actions
     await listen<string>("tray-mode", (e) => {
@@ -262,7 +288,7 @@ export const useApp = create<AppState>((set, get) => ({
       set({
         phase: "error",
         api: null,
-        error: `内核进程意外退出（code ${e.payload ?? "?"}）`,
+        error: t("内核进程意外退出（code {code}）", { code: e.payload ?? "?" }),
         up: 0,
         down: 0,
         memory: 0,

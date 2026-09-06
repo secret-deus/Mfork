@@ -1,31 +1,37 @@
 import { useEffect, useState } from "react";
 import { useApp } from "../store";
 import { formatBytes, formatRate } from "../lib/core";
+import { useT } from "../i18n";
 
 function Uptime({ since }: { since: number }) {
+  const t = useT();
   const [, tick] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => tick((n) => n + 1), 1000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => tick((n) => n + 1), 1000);
+    return () => clearInterval(timer);
   }, []);
-  const s = Math.max(0, Math.floor((Date.now() - since) / 1000));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
+  const total = Math.max(0, Math.floor((Date.now() - since) / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
   return (
     <span>
-      已运行 {h > 0 ? `${h} 小时 ` : ""}
-      {m} 分 {s % 60} 秒
+      {h > 0
+        ? t("已运行 {h} 小时 {m} 分 {s} 秒", { h, m, s })
+        : t("已运行 {m} 分 {s} 秒", { m, s })}
     </span>
   );
 }
 
 const MODES = [
-  { key: "rule", label: "规则" },
-  { key: "global", label: "全局" },
-  { key: "direct", label: "直连" },
+  // context-keyed: "规则" alone collides with the Rules nav entry
+  { key: "rule", label: "mode.rule" },
+  { key: "global", label: "mode.global" },
+  { key: "direct", label: "mode.direct" },
 ] as const;
 
 export default function Overview() {
+  const t = useT();
   const {
     phase,
     api,
@@ -49,7 +55,7 @@ export default function Overview() {
   return (
     <div className="flex h-full flex-col px-14 pb-10 pt-13">
       <div className="flex items-center justify-between">
-        <div className="cap">Mfork · 概览 Overview</div>
+        <div className="cap">{t("Mfork · 概览 Overview")}</div>
         <div className="cap2">
           {phase === "running" && api ? <Uptime since={api.started_at_ms} /> : null}
         </div>
@@ -61,35 +67,35 @@ export default function Overview() {
         </span>
         <div className="flex flex-col gap-0.5">
           <span className="text-[13px] text-mut">{dl.unit}</span>
-          <span className="cap2 !text-ok tracking-[2px]">↓ 下载</span>
+          <span className="cap2 !text-ok tracking-[2px]">{t("↓ 下载")}</span>
         </div>
       </div>
       <div className="mt-4 flex items-baseline gap-3">
-        <span className="font-sg text-[38px] leading-none font-light text-[#9aa0a8]">
+        <span className="font-sg text-[38px] leading-none font-light text-fg-3">
           {phase === "running" ? ul.value : "0"}
         </span>
         <span className="text-[11px] text-dim">{ul.unit}</span>
-        <span className="cap2 !text-accent tracking-[2px]">↑ 上传</span>
+        <span className="cap2 !text-accent tracking-[2px]">{t("↑ 上传")}</span>
       </div>
 
       <div className="mt-9 h-px w-[470px] bg-line" />
       <div className="flex w-[470px]">
         <div className="flex flex-1 flex-col gap-1.5 py-4">
-          <span className="cap">活动连接</span>
+          <span className="cap">{t("活动连接")}</span>
           <span className="font-sg text-2xl">
             {phase === "running" ? connections : "—"}
           </span>
         </div>
         <div className="w-px bg-line" />
         <div className="flex flex-1 flex-col gap-1.5 py-4 pl-6">
-          <span className="cap">内核内存</span>
+          <span className="cap">{t("内核内存")}</span>
           <span className="font-sg text-2xl">
             {phase === "running" ? formatBytes(memory) : "—"}
           </span>
         </div>
         <div className="w-px bg-line" />
         <div className="flex flex-1 flex-col gap-1.5 py-4 pl-6">
-          <span className="cap">内核版本</span>
+          <span className="cap">{t("内核版本")}</span>
           <span className="font-sg text-2xl">
             {phase === "running" && version ? version.replace(/^v/, "") : "—"}
           </span>
@@ -109,7 +115,7 @@ export default function Overview() {
                 : "border-transparent text-dim hover:text-mut"
             } disabled:opacity-40`}
           >
-            {m.label}
+            {t(m.label)}
           </button>
         ))}
         <div className="h-4 w-px bg-line" />
@@ -120,15 +126,15 @@ export default function Overview() {
         >
           <span
             className={`block h-1.5 w-1.5 rounded-full ${
-              settings?.system_proxy ? "bg-ok" : "bg-[#2a2d34]"
+              settings?.system_proxy ? "bg-ok" : "bg-faint"
             }`}
           />
-          <span className={settings?.system_proxy ? "text-fg" : undefined}>系统代理</span>
+          <span className={settings?.system_proxy ? "text-fg" : undefined}>{t("系统代理")}</span>
         </button>
         <div className="h-4 w-px bg-line" />
         {phase === "running" ? (
           <button onClick={stop} className="text-xs text-mut hover:text-fg">
-            停止内核
+            {t("停止内核")}
           </button>
         ) : (
           <button
@@ -136,7 +142,7 @@ export default function Overview() {
             disabled={phase === "starting"}
             className="text-xs text-accent hover:text-fg disabled:opacity-50"
           >
-            {phase === "starting" ? "启动中…" : "启动内核"}
+            {phase === "starting" ? t("启动中…") : t("启动内核")}
           </button>
         )}
       </div>
@@ -161,20 +167,22 @@ export default function Overview() {
           />
           <span className="text-[13px]">
             {phase === "running"
-              ? `mihomo ${version ?? ""} · 运行中`
+              ? t("mihomo {v} · 运行中", { v: version ?? "" })
               : phase === "starting"
-                ? "内核启动中"
+                ? t("内核启动中")
                 : phase === "error"
-                  ? "内核异常"
-                  : "内核已停止"}
+                  ? t("内核异常")
+                  : t("内核已停止")}
           </span>
           {phase === "running" && api ? (
             <span className="cap2">
-              API 127.0.0.1:{api.port} · 混合端口 {api.mixed_port}
+              {t("API 127.0.0.1:{port} · 混合端口 {mixed}", {
+                port: api.port,
+                mixed: api.mixed_port,
+              })}
             </span>
           ) : null}
         </div>
-        <div className="cap2">节点地图与订阅信息将在 M2/M4 接入</div>
       </div>
     </div>
   );

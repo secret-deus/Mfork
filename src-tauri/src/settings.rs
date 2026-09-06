@@ -50,14 +50,33 @@ impl Default for DnsSettings {
     }
 }
 
+#[derive(Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct WebdavSettings {
+    pub url: String,
+    pub username: String,
+    pub password: String,
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AppSettings {
+    /// fixed mixed port; 0 = pick a free port on every start
+    pub mixed_port: u16,
+    pub allow_lan: bool,
+    pub ipv6: bool,
     pub system_proxy: bool,
     pub proxy_bypass: String,
     pub silent_start: bool,
     pub tun: TunSettings,
     pub dns: DnsSettings,
+    /// mihomo release channel for self-upgrade: stable | alpha
+    pub core_channel: String,
+    /// dark | light | system
+    pub theme: String,
+    /// zh-CN | zh-TW | en
+    pub locale: String,
+    pub webdav: WebdavSettings,
 }
 
 pub fn default_bypass() -> String {
@@ -71,11 +90,18 @@ pub fn default_bypass() -> String {
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
+            mixed_port: 0,
+            allow_lan: false,
+            ipv6: false,
             system_proxy: false,
             proxy_bypass: default_bypass(),
             silent_start: false,
             tun: TunSettings::default(),
             dns: DnsSettings::default(),
+            core_channel: "stable".into(),
+            theme: "dark".into(),
+            locale: "zh-CN".into(),
+            webdav: WebdavSettings::default(),
         }
     }
 }
@@ -109,8 +135,12 @@ pub fn settings_get(app: AppHandle) -> AppSettings {
 /// toggled system_proxy flag) takes effect immediately.
 #[tauri::command]
 pub fn settings_set(app: AppHandle, settings: AppSettings) -> Result<(), String> {
+    let before = load(&app);
     save(&app, &settings)?;
     let r = crate::system::sync_system_proxy(&app);
+    if before.locale != settings.locale {
+        crate::tray::set_locale(&app, &settings.locale);
+    }
     crate::tray::refresh(&app);
     r
 }

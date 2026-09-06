@@ -13,8 +13,10 @@ import {
   overridesList,
 } from "../lib/core";
 import CodeEditor from "../components/CodeEditor";
+import { useT } from "../i18n";
 
 export default function Overrides() {
+  const t = useT();
   const { api, syncConfig } = useApp();
   const [list, setList] = useState<OverrideMeta[]>([]);
   const [editing, setEditing] = useState<OverrideMeta | null>(null);
@@ -77,18 +79,18 @@ export default function Overrides() {
               onClick={() => setEditing(null)}
               className="text-xs text-mut hover:text-fg"
             >
-              ← 返回
+              {t("← 返回")}
             </button>
             <span className="text-[15px] font-semibold">{editing.name}</span>
             <span className="cap2">{editing.kind}</span>
-            {dirty ? <span className="cap2 !text-warn">未保存</span> : null}
+            {dirty ? <span className="cap2 !text-warn">{t("未保存")}</span> : null}
           </div>
           <button
             onClick={() => void save()}
             disabled={!dirty}
             className="text-xs font-semibold tracking-[1px] text-accent hover:text-fg disabled:opacity-40"
           >
-            保存并应用
+            {t("保存并应用")}
           </button>
         </div>
         {error ? (
@@ -111,22 +113,22 @@ export default function Overrides() {
   return (
     <div className="flex h-full min-w-0 flex-col px-14 pb-8 pt-13">
       <div className="flex items-center justify-between">
-        <div className="cap">Mfork · 覆写 Overrides</div>
+        <div className="cap">{t("Mfork · 覆写 Overrides")}</div>
         <button
           onClick={() => setCreating(!creating)}
           className="text-xs text-accent hover:text-fg"
         >
-          新建覆写
+          {t("新建覆写")}
         </button>
       </div>
-      <div className="mt-2 cap2">按列表顺序依次应用到当前订阅；改动保存后即时生效</div>
+      <div className="mt-2 cap2">{t("按列表顺序依次应用到当前订阅；改动保存后即时生效")}</div>
 
       {creating ? (
         <div className="mt-5 flex items-center gap-4 border-b border-line-strong pb-3">
           <input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            placeholder="覆写名称"
+            placeholder={t("覆写名称")}
             className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-dim"
           />
           <div className="flex gap-3">
@@ -145,7 +147,7 @@ export default function Overrides() {
           <button
             onClick={() =>
               void act(async () => {
-                const meta = await overrideCreate(newName.trim() || "未命名覆写", newKind);
+                const meta = await overrideCreate(newName.trim() || t("未命名覆写"), newKind);
                 setCreating(false);
                 setNewName("");
                 await openEditor(meta);
@@ -153,7 +155,7 @@ export default function Overrides() {
             }
             className="text-xs font-semibold text-accent hover:text-fg"
           >
-            创建
+            {t("创建")}
           </button>
         </div>
       ) : null}
@@ -163,26 +165,26 @@ export default function Overrides() {
       <div className="min-h-0 flex-1 overflow-y-auto">
         {list.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2">
-            <span className="cap">尚无覆写</span>
-            <span className="cap2">YAML 深合并 或 JS main(config) 变换</span>
+            <span className="cap">{t("尚无覆写")}</span>
+            <span className="cap2">{t("YAML 深合并 或 JS main(config) 变换")}</span>
           </div>
         ) : (
           list.map((o, i) => (
             <div
               key={o.id}
-              className="flex items-center justify-between border-b border-[#16181d] py-4"
+              className="flex items-center justify-between border-b border-line-soft py-4"
             >
               <div className="flex items-center gap-3.5">
                 <button
                   onClick={() => void act(() => overrideToggle(o.id, !o.enabled))}
                   className={`h-[17px] w-[30px] rounded-[9px] transition-colors ${
-                    o.enabled ? "bg-accent" : "bg-[#24272e]"
+                    o.enabled ? "bg-accent" : "bg-toggle-off"
                   } relative`}
-                  title={o.enabled ? "已启用" : "已停用"}
+                  title={o.enabled ? t("已启用") : t("已停用")}
                 >
                   <span
                     className={`absolute top-[2.5px] block h-3 w-3 rounded-full transition-all ${
-                      o.enabled ? "left-[15px] bg-[#101114]" : "left-[3px] bg-[#e8eaf0]"
+                      o.enabled ? "left-[15px] bg-knob-on" : "left-[3px] bg-knob"
                     }`}
                   />
                 </button>
@@ -199,7 +201,7 @@ export default function Overrides() {
                   onClick={() => void act(() => overrideMove(o.id, true))}
                   disabled={i === 0}
                   className="text-dim hover:text-fg disabled:opacity-30"
-                  title="上移"
+                  title={t("上移")}
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 15 6-6 6 6" /></svg>
                 </button>
@@ -207,7 +209,7 @@ export default function Overrides() {
                   onClick={() => void act(() => overrideMove(o.id, false))}
                   disabled={i === list.length - 1}
                   className="text-dim hover:text-fg disabled:opacity-30"
-                  title="下移"
+                  title={t("下移")}
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
                 </button>
@@ -215,17 +217,17 @@ export default function Overrides() {
                   onClick={() => void openEditor(o)}
                   className="text-xs text-mut hover:text-fg"
                 >
-                  编辑
+                  {t("编辑")}
                 </button>
                 <button
                   onClick={() => {
-                    if (window.confirm(`删除覆写「${o.name}」？`)) {
+                    if (window.confirm(t("删除覆写「{name}」？", { name: o.name }))) {
                       void act(() => overrideDelete(o.id));
                     }
                   }}
                   className="text-xs text-dim hover:text-err"
                 >
-                  删除
+                  {t("删除")}
                 </button>
               </div>
             </div>

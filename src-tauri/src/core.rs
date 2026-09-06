@@ -43,11 +43,20 @@ fn random_secret() -> String {
         .collect()
 }
 
-const CORE_BIN: &str = if cfg!(windows) { "mihomo.exe" } else { "mihomo" };
+pub const CORE_BIN: &str = if cfg!(windows) { "mihomo.exe" } else { "mihomo" };
+
+/// The binary the core actually runs from: a self-upgraded copy in the app
+/// data dir wins over the bundled one.
+pub fn core_binary(app: &AppHandle) -> Result<PathBuf, String> {
+    if let Some(p) = crate::updater::upgraded_binary(app) {
+        return Ok(p);
+    }
+    bundled_binary(app)
+}
 
 /// Locate the bundled mihomo binary: bundle resources first, then the
 /// source tree (dev builds where resources are not yet copied).
-pub fn core_binary(app: &AppHandle) -> Result<PathBuf, String> {
+pub fn bundled_binary(app: &AppHandle) -> Result<PathBuf, String> {
     if let Ok(dir) = app.path().resource_dir() {
         let p = dir.join("resources").join("mihomo").join(CORE_BIN);
         if p.exists() {
@@ -101,7 +110,15 @@ pub fn core_start(app: AppHandle, state: State<'_, CoreState>) -> Result<ApiInfo
     let bin = core_binary(&app)?;
     let dir = data_dir(&app)?;
     let api_port = free_port()?;
-    let mixed_port = free_port()?;
+    let fixed = crate::settings::load(&app).mixed_port;
+    let mixed_port = if fixed > 0 {
+        if TcpListener::bind(("127.0.0.1", fixed)).is_err() {
+            return Err(format!("端口 {fixed} 已被占用，请在设置中更换混合端口"));
+        }
+        fixed
+    } else {
+        free_port()?
+    };
     let secret = random_secret();
 
     let config_path = crate::profile::generate_config(&app, api_port, &secret, mixed_port)?;
@@ -250,6 +267,14 @@ fn core_stop_inner(app: &AppHandle, state: &State<'_, CoreState>) -> bool {
     }
     *state.api.lock().unwrap() = None;
     stopped
+}
+
+/// Stop the core so its executable can be replaced; the OS proxy is left
+/// alone because the frontend restarts the core right away.
+pub fn stop_for_upgrade(app: &AppHandle, state: &State<'_, CoreState>) {
+    core_stop_inner(app, state);
+    // Windows keeps the image locked for a moment after the process ends
+    std::thread::sleep(Duration::from_millis(300));
 }
 
 #[tauri::command]

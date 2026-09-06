@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { useApp } from "../store";
 import { apiGet, apiPut, relativeTime } from "../lib/core";
 import { RuleItem, RuleProvider } from "../lib/types";
+import { useT } from "../i18n";
 
 export default function Rules() {
+  const t = useT();
   const { api, phase } = useApp();
   const [rules, setRules] = useState<RuleItem[]>([]);
   const [providers, setProviders] = useState<RuleProvider[]>([]);
@@ -52,9 +54,9 @@ export default function Rules() {
     <div className="flex h-full min-w-0 flex-col px-14 pb-6 pt-13">
       <div className="flex items-center justify-between">
         <div className="flex items-baseline gap-5">
-          <div className="cap">Mfork · 规则 Rules</div>
+          <div className="cap">{t("Mfork · 规则 Rules")}</div>
           <span className="cap2">
-            共 <span className="font-sg text-[11px] text-[#c3c8d0]">{rules.length}</span> 条
+            {t("共")} <span className="font-sg text-[11px] text-fg-2">{rules.length}</span> {t("条")}
           </span>
         </div>
       </div>
@@ -63,18 +65,20 @@ export default function Rules() {
         <div className="mt-5 flex flex-wrap gap-x-8 gap-y-2 border-b border-line pb-4">
           {providers.map((p) => (
             <div key={p.name} className="flex items-center gap-3">
-              <span className="text-xs text-[#b6bac2]">{p.name}</span>
+              <span className="text-xs text-fg-3">{p.name}</span>
               <span className="cap2">{p.behavior}</span>
-              <span className="cap2">{p.ruleCount} rules</span>
+              <span className="cap2">{t("{n} rules", { n: p.ruleCount })}</span>
               {p.updatedAt ? (
-                <span className="cap2">{relativeTime(Date.parse(p.updatedAt) / 1000)}更新</span>
+                <span className="cap2">
+                  {t("{time}更新", { time: relativeTime(Date.parse(p.updatedAt) / 1000) })}
+                </span>
               ) : null}
               <button
                 onClick={() => void updateProvider(p.name)}
                 disabled={updating === p.name}
                 className="text-[11px] text-accent hover:text-fg disabled:opacity-50"
               >
-                {updating === p.name ? "更新中…" : "更新"}
+                {updating === p.name ? t("更新中…") : t("更新")}
               </button>
             </div>
           ))}
@@ -89,7 +93,7 @@ export default function Rules() {
         <input
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          placeholder="搜索规则 / 类型 / 目标"
+          placeholder={t("搜索规则 / 类型 / 目标")}
           className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-dim"
         />
       </div>
@@ -97,13 +101,13 @@ export default function Rules() {
       <div className="min-h-0 flex-1 overflow-y-auto">
         {phase !== "running" ? (
           <div className="flex h-full items-center justify-center">
-            <span className="cap">内核未运行</span>
+            <span className="cap">{t("内核未运行")}</span>
           </div>
         ) : (
           shown.map((r, i) => (
-            <div key={i} className="flex items-center gap-4 border-b border-[#131519] py-2.5">
+            <div key={i} className="flex items-center gap-4 border-b border-line-faint py-2.5">
               <span className="cap2 w-36 shrink-0">{r.type}</span>
-              <span className="min-w-0 flex-1 truncate text-xs text-[#b6bac2]">{r.payload || "—"}</span>
+              <span className="min-w-0 flex-1 truncate text-xs text-fg-3">{r.payload || "—"}</span>
               <span className={`shrink-0 text-xs ${r.proxy === "DIRECT" ? "text-ok" : r.proxy === "REJECT" ? "text-err" : "text-mut"}`}>
                 {r.proxy}
               </span>
