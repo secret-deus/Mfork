@@ -41,6 +41,10 @@ const en: Record<string, string> = {
   "内核已停止": "Core stopped",
   "API 127.0.0.1:{port} · 混合端口 {mixed}": "API 127.0.0.1:{port} · mixed port {mixed}",
   "内核进程意外退出（code {code}）": "Core process exited unexpectedly (code {code})",
+  "当前节点 · {name}": "Current node · {name}",
+  "直连模式 · 不经过节点": "Direct mode · no node in use",
+  "当前节点位置未知": "Current node location unknown",
+  "{n} 处可用节点": "{n} reachable locations",
 
   // ---- proxies
   "排序": "Sort",

@@ -1,7 +1,82 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useApp } from "../store";
-import { formatBytes, formatRate } from "../lib/core";
+import { apiGet, formatBytes, formatRate } from "../lib/core";
 import { useT } from "../i18n";
+import Globe, { GlobeNode } from "../components/Globe";
+import { locateNode, locateSelf } from "../lib/geo";
+import { ProxyGroup, ProxyNode } from "../lib/types";
+
+const GROUP_TYPES = new Set(["Selector", "URLTest", "Fallback", "LoadBalance", "Relay"]);
+const BUILTIN = new Set(["DIRECT", "REJECT", "REJECT-DROP", "PASS", "COMPATIBLE", "GLOBAL"]);
+
+/** Reachable nodes (last delay test succeeded) clustered by location, plus
+ *  the node currently in use, resolved through the selector chain. */
+function useGlobeData() {
+  const { api, phase, mode } = useApp();
+  const [data, setData] = useState<{ nodes: GlobeNode[]; current: GlobeNode | null }>({
+    nodes: [],
+    current: null,
+  });
+
+  useEffect(() => {
+    if (phase !== "running" || !api) {
+      setData({ nodes: [], current: null });
+      return;
+    }
+    let stop = false;
+    const tick = async () => {
+      try {
+        const p = await apiGet<{ proxies: Record<string, ProxyNode & { all?: string[]; now?: string }> }>(
+          api,
+          "/proxies",
+        );
+        const g = await apiGet<{ proxies: ProxyGroup[] }>(api, "/group");
+        if (stop) return;
+        const all = p.proxies;
+        const clusters = new Map<string, GlobeNode>();
+        for (const n of Object.values(all)) {
+          if (n.all || GROUP_TYPES.has(n.type) || BUILTIN.has(n.name.toUpperCase())) continue;
+          const h = n.history;
+          if (!h || h.length === 0 || h[h.length - 1].delay <= 0) continue;
+          const pos = locateNode(n.name);
+          if (!pos) continue;
+          const key = pos.join(",");
+          const c = clusters.get(key);
+          if (c) c.count += 1;
+          else clusters.set(key, { name: n.name, pos, count: 1 });
+        }
+        // current node: GLOBAL's pick in global mode, else the first group's
+        let current: GlobeNode | null = null;
+        if (mode !== "direct") {
+          let name: string | undefined =
+            mode === "global"
+              ? all["GLOBAL"]?.now
+              : g.proxies.find((x) => x.name !== "GLOBAL")?.now;
+          const seen = new Set<string>();
+          while (name && all[name]?.now && !seen.has(name)) {
+            seen.add(name);
+            name = all[name].now;
+          }
+          if (name && !BUILTIN.has(name.toUpperCase())) {
+            const pos = locateNode(name);
+            if (pos) current = { name, pos, count: 1 };
+          }
+        }
+        setData({ nodes: [...clusters.values()], current });
+      } catch {
+        /* core restarting: keep the last frame */
+      }
+    };
+    void tick();
+    const timer = setInterval(() => void tick(), 8000);
+    return () => {
+      stop = true;
+      clearInterval(timer);
+    };
+  }, [api, phase, mode]);
+
+  return data;
+}
 
 function Uptime({ since }: { since: number }) {
   const t = useT();
@@ -51,17 +126,31 @@ export default function Overview() {
 
   const dl = formatRate(down);
   const ul = formatRate(up);
+  const globe = useGlobeData();
+  const self = useMemo(locateSelf, []);
 
   return (
-    <div className="flex h-full flex-col px-14 pb-10 pt-13">
-      <div className="flex items-center justify-between">
+    <div className="relative flex h-full flex-col overflow-hidden px-14 pb-10 pt-13">
+      {/* globe bleeds off the right edge; content stays on top */}
+      <div
+        className="pointer-events-none absolute top-1/2 -right-[14vh] h-[96vh] w-[96vh] -translate-y-1/2 select-none"
+        aria-hidden
+      >
+        <Globe
+          self={self}
+          nodes={globe.nodes}
+          current={globe.current}
+          active={phase === "running"}
+        />
+      </div>
+      <div className="relative z-10 flex items-center justify-between">
         <div className="cap">{t("Mfork · 概览 Overview")}</div>
         <div className="cap2">
           {phase === "running" && api ? <Uptime since={api.started_at_ms} /> : null}
         </div>
       </div>
 
-      <div className="mt-8 flex items-baseline gap-3.5">
+      <div className="relative z-10 mt-8 flex items-baseline gap-3.5">
         <span className="font-sg text-[100px] leading-[0.9] font-light tracking-[-2px]">
           {phase === "running" ? dl.value : "0"}
         </span>
@@ -70,7 +159,7 @@ export default function Overview() {
           <span className="cap2 !text-ok tracking-[2px]">{t("↓ 下载")}</span>
         </div>
       </div>
-      <div className="mt-4 flex items-baseline gap-3">
+      <div className="relative z-10 mt-4 flex items-baseline gap-3">
         <span className="font-sg text-[38px] leading-none font-light text-fg-3">
           {phase === "running" ? ul.value : "0"}
         </span>
@@ -78,8 +167,8 @@ export default function Overview() {
         <span className="cap2 !text-accent tracking-[2px]">{t("↑ 上传")}</span>
       </div>
 
-      <div className="mt-9 h-px w-[470px] bg-line" />
-      <div className="flex w-[470px]">
+      <div className="relative z-10 mt-9 h-px w-[470px] bg-line" />
+      <div className="relative z-10 flex w-[470px]">
         <div className="flex flex-1 flex-col gap-1.5 py-4">
           <span className="cap">{t("活动连接")}</span>
           <span className="font-sg text-2xl">
@@ -101,9 +190,9 @@ export default function Overview() {
           </span>
         </div>
       </div>
-      <div className="h-px w-[470px] bg-line" />
+      <div className="relative z-10 h-px w-[470px] bg-line" />
 
-      <div className="mt-6 flex items-center gap-6">
+      <div className="relative z-10 mt-6 flex items-center gap-6">
         {MODES.map((m) => (
           <button
             key={m.key}
@@ -149,7 +238,19 @@ export default function Overview() {
 
       <div className="flex-1" />
 
-      <div className="flex w-[470px] flex-col gap-3">
+      <div className="relative z-10 flex w-[470px] flex-col gap-3">
+        {phase === "running" ? (
+          <div className="cap2">
+            {globe.current
+              ? t("当前节点 · {name}", { name: globe.current.name })
+              : mode === "direct"
+                ? t("直连模式 · 不经过节点")
+                : t("当前节点位置未知")}
+            {globe.nodes.length > 0
+              ? ` · ${t("{n} 处可用节点", { n: globe.nodes.length })}`
+              : ""}
+          </div>
+        ) : null}
         {error ? (
           <div className="text-xs text-err select-text">{error}</div>
         ) : null}
