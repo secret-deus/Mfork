@@ -1,7 +1,7 @@
 # Mfork 設計文檔
 
 > **Mfork** — 一個對標 Sparkle 功能範圍的 mihomo 桌面客戶端。Windows 優先落地，macOS / Linux 共用同一套代碼（含提權服務）。
-> 品牌：logo 為「分流 Fork」單色幾何標（一條流量分成兩路）；視覺定稿為「雜誌排版」方向——Space Grotesk 大字號數字、留白、髮絲線代替卡片、64px 圖標欄導航、中性近黑底 #0b0c0f + accent #7c9cff 克制使用。完整設計稿見 design/ 目錄與 Artifact 畫布。
+> 品牌：logo 為「分流 Fork」單色幾何標（一條流量分成兩路）；視覺定稿為「雜誌排版」方向——Space Grotesk 大字號數字、留白、髮絲線代替卡片、64px 圖標欄導航、中性近黑底 #0b0c0f。配色在 macOS 實機驗證後重定（2026-09）：正文 Inter Variable 500 字重、數字 Space Grotesk；主文字 #f5f6f8、說明文字 #c4cbd5（不再使用中灰）、微標籤金黃 #ffd166、動作/單位/選中態純藍 #4f9cff（不用紫調）、狀態薄荷綠 #62e39a、錯誤 #ff6b6b。完整設計稿見 design/ 目錄與 Artifact 畫布。
 
 ## 1. 技術棧
 

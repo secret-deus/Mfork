@@ -3,27 +3,27 @@
 /* palette — dark is the default, light overrides via data-theme on <html> */
 :root {
   --t-bg: #0b0c0f;
-  --t-surface: #121317;
-  --t-line-faint: #1a1d24;
-  --t-line-soft: #1f232a;
-  --t-line: #262a32;
-  --t-line-strong: #30353e;
-  --t-fg: #f2f3f5;
-  --t-fg-2: #eaecf0;
-  --t-fg-3: #dfe2e7;
-  --t-mut: #cfd3da;
-  --t-dim: #b0b6c0;
-  --t-faint: #6a707a;
-  --t-toggle-off: #30353e;
+  --t-surface: #14161b;
+  --t-line-faint: #1c1f26;
+  --t-line-soft: #22262e;
+  --t-line: #2a2f38;
+  --t-line-strong: #353b45;
+  --t-fg: #f5f6f8;
+  --t-fg-2: #dbe0e8;
+  --t-fg-3: #c4cbd5;
+  --t-mut: #a9b2bf;
+  --t-dim: #8d97a5;
+  --t-faint: #5b6473;
+  --t-toggle-off: #353b45;
   --t-knob: #e7e9ec;
   --t-knob-on: #101114;
   --t-logo-bg: #f2f3f5;
   --t-logo-fg: #101114;
   --t-nav-active: rgba(255, 255, 255, 0.06);
   --t-accent: #4f9cff;
-  --t-ok: #5dff8f;
-  --t-warn: #f2ff5c;
-  --t-err: #f26d6d;
+  --t-ok: #62e39a;
+  --t-warn: #ffd166;
+  --t-err: #ff6b6b;
 }
 
 :root[data-theme="light"] {
