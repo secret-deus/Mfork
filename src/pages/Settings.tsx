@@ -549,7 +549,7 @@ function TunSection() {
             ? t("运行中 · 内核可以 SYSTEM 权限启动")
             : svc?.installed
               ? t("已安装但未响应")
-              : t("未安装 · TUN 需要提权服务（安装时弹出一次 UAC）"))
+              : t("未安装 · TUN 需要提权服务（安装时弹出一次系统授权）"))
         }
         right={
           <div className="flex gap-4">

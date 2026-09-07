@@ -1,6 +1,10 @@
-//! Client for the elevated mfork-service (Windows) plus install/uninstall
-//! helpers. The service lets the core run as SYSTEM so TUN mode can create
-//! its virtual adapter without the GUI ever being elevated.
+//! Client for the elevated mfork-service plus install/uninstall helpers.
+//! The service lets the core run as SYSTEM/root so TUN mode can create its
+//! virtual adapter without the GUI ever being elevated.
+//!
+//! Windows: SCM service, UAC prompt via PowerShell RunAs.
+//! macOS:   launchd daemon, admin prompt via osascript.
+//! Linux:   systemd unit, polkit prompt via pkexec.
 
 use serde::{Deserialize, Serialize};
 use std::io::{BufRead, BufReader, Write};
@@ -29,26 +33,41 @@ pub struct Resp {
     pub pid: Option<u32>,
 }
 
-/// Locate mfork-service.exe: bundle resources first, then the dev build.
+const SERVICE_BIN: &str = if cfg!(windows) { "mfork-service.exe" } else { "mfork-service" };
+
+/// Locate the bundled service binary: bundle resources first, then the
+/// dev build.
 fn service_exe(app: &AppHandle) -> Result<PathBuf, String> {
     if let Ok(dir) = app.path().resource_dir() {
-        let p = dir.join("resources").join("service").join("mfork-service.exe");
+        let p = dir.join("resources").join("service").join(SERVICE_BIN);
         if p.exists() {
             return Ok(p);
         }
     }
     let dev = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
-        .map(|r| r.join("service").join("target").join("release").join("mfork-service.exe"))
+        .map(|r| r.join("service").join("target").join("release").join(SERVICE_BIN))
         .filter(|p| p.exists());
     dev.ok_or_else(|| {
-        "mfork-service.exe 未找到 — 运行 `cargo build --release` (service/ 目录) 构建它".into()
+        format!("{SERVICE_BIN} 未找到 — 运行 `node scripts/build-service.mjs` 构建它")
     })
 }
 
+/// Directory holding service.token / core-path.txt. Windows: next to the
+/// bundled exe (the installer runs it in place). Unix: the root-owned dir
+/// the installer copies the daemon into.
+fn token_dir(app: &AppHandle) -> Option<PathBuf> {
+    if cfg!(windows) {
+        service_exe(app).ok()?.parent().map(|p| p.to_path_buf())
+    } else if cfg!(target_os = "macos") {
+        Some(PathBuf::from("/Library/Application Support/Mfork"))
+    } else {
+        Some(PathBuf::from("/usr/local/lib/mfork"))
+    }
+}
+
 fn read_token(app: &AppHandle) -> Option<String> {
-    let exe = service_exe(app).ok()?;
-    let p = exe.parent()?.join("service.token");
+    let p = token_dir(app)?.join("service.token");
     std::fs::read_to_string(p).ok().map(|s| s.trim().to_string())
 }
 
@@ -116,7 +135,7 @@ pub fn service_status(app: AppHandle) -> ServiceStatus {
     }
 }
 
-/// Reachable or at least registered with the SCM.
+/// Reachable or at least registered with the OS service manager.
 pub fn installed(app: &AppHandle) -> bool {
     ping(app) || service_registered()
 }
@@ -136,7 +155,7 @@ pub fn repin(app: &AppHandle, core: &PathBuf) -> Result<(), String> {
     Err("服务已重新安装但未响应".into())
 }
 
-/// Is the Windows service registered with the SCM (even if not running)?
+/// Is the service registered with the OS (even if not running)?
 fn service_registered() -> bool {
     #[cfg(windows)]
     {
@@ -148,8 +167,14 @@ fn service_registered() -> bool {
         }
         cmd.output().map(|o| o.status.success()).unwrap_or(false)
     }
-    #[cfg(not(windows))]
-    false
+    #[cfg(target_os = "macos")]
+    {
+        std::path::Path::new("/Library/LaunchDaemons/app.mfork.service.plist").exists()
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        std::path::Path::new("/etc/systemd/system/mfork-service.service").exists()
+    }
 }
 
 /// Run the service installer elevated (one UAC prompt).
@@ -165,7 +190,13 @@ pub fn service_install(app: AppHandle) -> Result<(), String> {
         }
         std::thread::sleep(Duration::from_millis(400));
     }
-    Err("服务已安装但未响应，请查看系统服务列表 (MforkService)".into())
+    Err(if cfg!(windows) {
+        "服务已安装但未响应，请查看系统服务列表 (MforkService)".into()
+    } else if cfg!(target_os = "macos") {
+        "服务已安装但未响应，请查看 /tmp/mfork-service.log".into()
+    } else {
+        "服务已安装但未响应，请查看 `systemctl status mfork-service`".into()
+    })
 }
 
 #[tauri::command]
@@ -174,7 +205,8 @@ pub fn service_uninstall(app: AppHandle) -> Result<(), String> {
     run_elevated(&svc, &["uninstall"])
 }
 
-/// Launch an exe elevated via powershell Start-Process -Verb RunAs and wait.
+/// Run the service binary elevated and wait: PowerShell RunAs (UAC) on
+/// Windows, osascript admin prompt on macOS, pkexec (polkit) on Linux.
 fn run_elevated(exe: &PathBuf, args: &[&str]) -> Result<(), String> {
     #[cfg(windows)]
     {
@@ -206,9 +238,48 @@ fn run_elevated(exe: &PathBuf, args: &[&str]) -> Result<(), String> {
             }
         }
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
     {
-        let _ = (exe, args);
-        Err("提权服务目前仅支持 Windows".into())
+        // shell-quote every argument, then embed the command line in the
+        // AppleScript string literal
+        let sh = std::iter::once(exe.to_string_lossy().to_string())
+            .chain(args.iter().map(|a| a.to_string()))
+            .map(|a| format!("'{}'", a.replace('\'', "'\\''")))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let script = format!(
+            "do shell script \"{}\" with administrator privileges",
+            sh.replace('\\', "\\\\").replace('"', "\\\"")
+        );
+        let out = std::process::Command::new("osascript")
+            .args(["-e", &script])
+            .output()
+            .map_err(|e| e.to_string())?;
+        if out.status.success() {
+            Ok(())
+        } else {
+            let err = String::from_utf8_lossy(&out.stderr);
+            if err.contains("-128") {
+                Err("用户取消了管理员授权".into())
+            } else {
+                Err(format!("提权执行失败: {}", err.trim()))
+            }
+        }
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        let out = std::process::Command::new("pkexec")
+            .arg(exe)
+            .args(args)
+            .output()
+            .map_err(|e| format!("pkexec 不可用（需要 polkit）: {e}"))?;
+        match out.status.code() {
+            Some(0) => Ok(()),
+            Some(126) | Some(127) => Err("用户取消了授权".into()),
+            _ => Err(format!(
+                "提权执行失败: {}",
+                String::from_utf8_lossy(&out.stderr).trim()
+            )),
+        }
     }
 }

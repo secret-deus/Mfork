@@ -37,7 +37,8 @@
       "rpm"
     ],
     "resources": [
-      "resources/mihomo/*"
+      "resources/mihomo/*",
+      "resources/service/*"
     ],
     "icon": [
       "icons/32x32.png",

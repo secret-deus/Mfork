@@ -1,6 +1,6 @@
 # Mfork 設計文檔
 
-> **Mfork** — 一個對標 Sparkle 功能範圍的 mihomo 桌面客戶端。Windows 優先，架構預留跨平台。
+> **Mfork** — 一個對標 Sparkle 功能範圍的 mihomo 桌面客戶端。Windows 優先落地，macOS / Linux 共用同一套代碼（含提權服務）。
 > 品牌：logo 為「分流 Fork」單色幾何標（一條流量分成兩路）；視覺定稿為「雜誌排版」方向——Space Grotesk 大字號數字、留白、髮絲線代替卡片、64px 圖標欄導航、中性近黑底 #0b0c0f + accent #7c9cff 克制使用。完整設計稿見 design/ 目錄與 Artifact 畫布。
 
 ## 1. 技術棧
@@ -29,7 +29,7 @@
 │  ├─ core:    mihomo.exe 進程守護、版本管理        │
 │  ├─ profile: 訂閱下載、覆寫合併、生成 config.yaml │
 │  ├─ system:  系統代理、托盤、開機自啟             │
-│  └─ service: TUN 提權服務（Windows Service）通信  │
+│  └─ service: TUN 提權服務（SCM/launchd/systemd）通信│
 ├─────────────────────────────────────────────────┤
 │  mihomo.exe (捆綁: stable / alpha 雙版本)         │
 └─────────────────────────────────────────────────┘
@@ -68,9 +68,17 @@ service.log / core.log
 - **開機自啟**：tauri-plugin-autostart；「靜默啟動」選項（啟動只進托盤）
 - **單實例**：tauri-plugin-single-instance，二次啟動喚起已有窗口
 
-### 2.4 TUN 提權（Rust `service` 模塊，Windows）
+### 2.4 TUN 提權（Rust `service` 模塊 + `service/` crate）
 
-採用 Clash Verge Rev 的成熟方案：安裝一個開機自啟的 Windows 服務（一次性 UAC），服務以 SYSTEM 權限代為啟動內核，GUI 通過本地 IPC（命名管道/HTTP）下發啟停指令。未裝服務時 TUN 開關引導安裝。
+採用 Clash Verge Rev 的成熟方案：安裝一個開機自啟的特權服務（一次性系統授權），服務以 SYSTEM/root 權限代為啟動內核，GUI 通過 `127.0.0.1:33217` 的 JSON-line 協議下發啟停指令，token 文件僅管理員可寫。內核路徑在安裝時釘死（`core-path.txt`），請求只能指定配置與數據目錄。未裝服務時 TUN 開關引導安裝。
+
+| 平台 | 服務形態 | 提權方式 | 安裝位置 |
+|---|---|---|---|
+| Windows | SCM 服務 `MforkService`（SYSTEM） | PowerShell `Start-Process -Verb RunAs`（UAC） | 隨包 `resources/service/`，原地運行 |
+| macOS | launchd daemon `app.mfork.service` | `osascript … with administrator privileges` | 複製到 `/Library/Application Support/Mfork/` |
+| Linux | systemd 單元 `mfork-service.service` | `pkexec`（polkit） | 複製到 `/usr/local/lib/mfork/` |
+
+macOS / Linux 的 daemon 收到 SIGTERM 時先殺內核子進程再退出；內核自升級後 GUI 會以同一提權流程重新釘定新路徑。
 
 ## 3. 頁面設計（對標 Sparkle）
 
@@ -91,7 +99,7 @@ service.log / core.log
 - **M2 訂閱系統**：訂閱增刪改查/更新/流量信息、覆寫合併管線、Monaco 編輯
 - **M3 代理與系統集成**：代理頁全功能、系統代理開關、托盤、開機自啟、單實例
 - **M4 監控**：連接頁、日誌頁、規則頁
-- **M5 TUN 與服務**：Windows 提權服務、TUN 參數設置、DNS 設置
+- **M5 TUN 與服務**：提權服務（Windows SCM / macOS launchd / Linux systemd）、TUN 參數設置、DNS 設置
 - **M6 打磨**：內核升級、GeoData 更新、WebDAV 備份、主題、自動更新（tauri-updater）、多語言（zh-TW/zh-CN/en）
 
 全部里程碑已完成（2026-09）。M6 落地要點：

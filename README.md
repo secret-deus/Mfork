@@ -1,6 +1,6 @@
 # Mfork
 
-一個基於 [mihomo](https://github.com/MetaCubeX/mihomo) 內核的桌面代理客戶端。Tauri 2 + React 19 構建，支持 Windows / macOS / Linux（系統代理與 TUN 的系統集成 Windows 優先落地）。
+一個基於 [mihomo](https://github.com/MetaCubeX/mihomo) 內核的桌面代理客戶端。Tauri 2 + React 19 構建，支持 Windows / macOS / Linux（三平台均含系統代理與 TUN 提權服務；Windows 已實機驗證，macOS / Linux 為交叉編譯檢查通過、待實機驗證）。
 
 > 設計文檔見 [docs/DESIGN.md](docs/DESIGN.md)，UI 設計稿源文件在 [design/](design/)。
 
@@ -15,7 +15,10 @@ pnpm install
 # 2. 下載當前平台的 mihomo 內核（僅首次；自動識別 OS/架構）
 node scripts/fetch-core.mjs
 
-# 3. 啟動開發環境
+# 3. 構建提權服務（TUN 需要；Windows/macOS/Linux 同一腳本）
+node scripts/build-service.mjs
+
+# 4. 啟動開發環境
 pnpm tauri dev
 ```
 
@@ -26,13 +29,26 @@ TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/mfork.key)" TAURI_SIGNING_PRIVATE_KEY_
 ```
 推送 `v*` tag 或手動觸發 GitHub Actions 可產出 Windows/macOS(x64+arm64)/Linux 全平台安裝包。
 
+### macOS 簽名與公證
+
+CI 在以下 GitHub secrets 存在時自動對 .app/.dmg 簽名並公證，缺省則產出未簽名包（首次打開需右鍵「打開」或 `xattr -cr Mfork.app`）：
+
+| Secret | 內容 |
+|---|---|
+| `APPLE_CERTIFICATE` | Developer ID Application 證書 .p12 的 base64 |
+| `APPLE_CERTIFICATE_PASSWORD` | .p12 密碼 |
+| `APPLE_SIGNING_IDENTITY` | 如 `Developer ID Application: Name (TEAMID)` |
+| `APPLE_ID` / `APPLE_PASSWORD` / `APPLE_TEAM_ID` | 公證用 Apple ID、app-specific password、Team ID |
+
+應用內更新另需 `TAURI_SIGNING_PRIVATE_KEY`（與 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`，無密碼時設為空）。
+
 ## 當前進度
 
 - [x] M1 骨架與內核閉環：Tauri 腳手架、內核啟停守護、REST API 連通、概覽頁（實時流量/內存/連接數、模式切換）；全部頁面骨架（代理/連接/規則/日誌接真實 API）；連接監控雙視圖（socket 級逐條連接 + 應用級按進程聚合，`find-process-mode: always`）
 - [x] M2 訂閱系統：訂閱下載（UA clash.meta、subscription-userinfo 流量頭）、增刪改/更新/切換、本地文件導入、按訂閱設定的定時自動更新；覆寫系統（YAML 深合併含 prepend-/append- 語義 + 內嵌 JS 引擎跑 `main(config)` 變換，Monaco 編輯器，保存即熱重載）；配置生成管線（訂閱 → 覆寫鏈 → GUI 托管字段 → config.yaml → PUT /configs 熱重載）
 - [x] M3 代理頁與系統集成：策略組/節點測速、排序/隱藏不可用；系統代理（註冊表 + 繞過列表）、托盤菜單、開機自啟、靜默啟動、單實例
 - [x] M4 監控：連接頁（socket / 應用雙視圖、搜索、斷開）、日誌頁（等級過濾、暫停）、規則頁（規則集 provider 手動更新）；概覽頁節點地球（大陸剪影出血裁切、僅標可連接節點、本機→當前節點流光，位置由節點名稱地區提示推斷）
-- [x] M5 TUN 與提權服務：Windows 服務（SYSTEM 權限代啟內核，一次 UAC）、TUN 參數（協議棧/嚴格路由/DNS 劫持）、DNS 接管（fake-ip / 上游）
+- [x] M5 TUN 與提權服務：特權服務代啟內核（Windows SCM 服務 / macOS launchd daemon / Linux systemd 單元，安裝時一次系統授權）、TUN 參數（協議棧/嚴格路由/DNS 劫持）、DNS 接管（fake-ip / 上游）
 - [x] M6 打磨：內核自升級（stable / alpha 通道，經內核代理下載）、GeoData 更新、固定端口 / 局域網 / IPv6、主題（深 / 淺 / 跟隨系統）、多語言（简体 / 繁體 / English，含托盤）、備份（本地 zip + WebDAV 備份/恢復）、應用自動更新（tauri-updater + GitHub Releases）
 
 實機測試清單見 [docs/TESTING-M5.md](docs/TESTING-M5.md) 與 [docs/TESTING-M6.md](docs/TESTING-M6.md)。

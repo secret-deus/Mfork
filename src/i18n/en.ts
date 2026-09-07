@@ -197,7 +197,7 @@ const en: Record<string, string> = {
   "系统服务": "System service",
   "运行中 · 内核可以 SYSTEM 权限启动": "Running · the core can start as SYSTEM",
   "已安装但未响应": "Installed but not responding",
-  "未安装 · TUN 需要提权服务（安装时弹出一次 UAC）": "Not installed · TUN needs the elevated service (one UAC prompt on install)",
+  "未安装 · TUN 需要提权服务（安装时弹出一次系统授权）": "Not installed · TUN needs the elevated service (one admin prompt on install)",
   "卸载": "Uninstall",
   "等待授权…": "Waiting for approval…",
   "安装服务": "Install service",

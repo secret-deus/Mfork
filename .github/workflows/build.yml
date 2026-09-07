@@ -53,9 +53,31 @@ jobs:
       - name: Fetch mihomo core
         run: node scripts/fetch-core.mjs
 
-      - name: Build elevated service (Windows)
-        if: startsWith(matrix.os, 'windows')
+      - name: Build elevated service
         run: node scripts/build-service.mjs
+
+      # Apple code signing + notarization switch on only when the secrets
+      # exist; without them the .app/.dmg is built unsigned (Gatekeeper
+      # will require right-click → Open or `xattr -cr`).
+      - name: Enable Apple signing
+        if: startsWith(matrix.os, 'macos')
+        shell: bash
+        env:
+          CERT: ${{ secrets.APPLE_CERTIFICATE }}
+        run: |
+          if [ -n "$CERT" ]; then
+            {
+              echo "APPLE_CERTIFICATE=${{ secrets.APPLE_CERTIFICATE }}"
+              echo "APPLE_CERTIFICATE_PASSWORD=${{ secrets.APPLE_CERTIFICATE_PASSWORD }}"
+              echo "APPLE_SIGNING_IDENTITY=${{ secrets.APPLE_SIGNING_IDENTITY }}"
+              echo "APPLE_ID=${{ secrets.APPLE_ID }}"
+              echo "APPLE_PASSWORD=${{ secrets.APPLE_PASSWORD }}"
+              echo "APPLE_TEAM_ID=${{ secrets.APPLE_TEAM_ID }}"
+            } >> "$GITHUB_ENV"
+            echo "Apple signing enabled"
+          else
+            echo "APPLE_CERTIFICATE not set: building unsigned"
+          fi
 
       # Builds, signs the updater artifacts and (on a v* tag) publishes a
       # GitHub release with latest.json for the in-app updater.

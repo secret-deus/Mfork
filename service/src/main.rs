@@ -1,18 +1,24 @@
-//! Mfork elevated service (Windows).
+//! Mfork elevated service.
 //!
-//! Runs as a Windows service under SYSTEM and starts the mihomo core with
-//! enough privilege to create the TUN adapter. The GUI talks to it over a
-//! JSON-line protocol on 127.0.0.1:33217, authenticated by a token file
-//! that only administrators can write.
+//! Runs with root/SYSTEM privilege and starts the mihomo core so TUN mode
+//! can create its virtual adapter without the GUI ever being elevated.
+//! The GUI talks to it over a JSON-line protocol on 127.0.0.1:33217,
+//! authenticated by a token file that only administrators can write.
+//!
+//! Platform backends:
+//!   Windows — SCM service running as SYSTEM (`win` module)
+//!   macOS   — launchd daemon in /Library/LaunchDaemons (`unix` module)
+//!   Linux   — systemd unit in /etc/systemd/system (`unix` module)
 //!
 //! Security model: the core binary path is pinned at install time (stored
-//! next to the service exe, admin-writable only). Requests can only choose
-//! the config file and data dir, never the executable.
+//! next to the service binary, admin-writable only). Requests can only
+//! choose the config file and data dir, never the executable.
 //!
 //! Subcommands (run elevated):
 //!   mfork-service install <core-exe-path>
 //!   mfork-service uninstall
-//! No args: service entry, invoked by the SCM.
+//!   mfork-service serve            (foreground; what launchd/systemd run)
+//! No args on Windows: service entry, invoked by the SCM.
 
 use serde::{Deserialize, Serialize};
 use std::io::{BufRead, BufReader, Write};
@@ -305,8 +311,174 @@ fn main() {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(unix)]
+mod unix {
+    use super::*;
+
+    /// Where the daemon binary, token and pinned core path live
+    /// (root-owned, world-readable so the GUI can read the token).
+    pub fn install_dir() -> PathBuf {
+        if cfg!(target_os = "macos") {
+            PathBuf::from("/Library/Application Support/Mfork")
+        } else {
+            PathBuf::from("/usr/local/lib/mfork")
+        }
+    }
+
+    const LABEL: &str = "app.mfork.service";
+
+    fn plist_path() -> PathBuf {
+        PathBuf::from(format!("/Library/LaunchDaemons/{LABEL}.plist"))
+    }
+
+    fn unit_path() -> PathBuf {
+        PathBuf::from("/etc/systemd/system/mfork-service.service")
+    }
+
+    fn run(cmd: &str, args: &[&str]) -> Result<(), String> {
+        let out = Command::new(cmd)
+            .args(args)
+            .output()
+            .map_err(|e| format!("{cmd}: {e}"))?;
+        if out.status.success() {
+            Ok(())
+        } else {
+            Err(format!(
+                "{cmd} {}: {}",
+                args.join(" "),
+                String::from_utf8_lossy(&out.stderr).trim()
+            ))
+        }
+    }
+
+    fn write_mode(path: &PathBuf, data: &str, mode: u32) -> Result<(), String> {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::write(path, data).map_err(|e| format!("write {}: {e}", path.display()))?;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))
+            .map_err(|e| e.to_string())
+    }
+
+    pub fn install(core_exe: &str) -> Result<(), String> {
+        use std::os::unix::fs::PermissionsExt;
+        let core = PathBuf::from(core_exe);
+        if !core.exists() {
+            return Err(format!("core binary not found: {core_exe}"));
+        }
+        let dir = install_dir();
+        std::fs::create_dir_all(&dir).map_err(|e| format!("create {}: {e}", dir.display()))?;
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755))
+            .map_err(|e| e.to_string())?;
+
+        // copy ourselves into the root-owned dir so the daemon does not
+        // depend on where the app bundle lives
+        let me = std::env::current_exe().map_err(|e| e.to_string())?;
+        let target = dir.join("mfork-service");
+        // stop a previous instance first: the binary may be in use
+        stop_daemon();
+        if me != target {
+            std::fs::copy(&me, &target).map_err(|e| format!("copy service: {e}"))?;
+        }
+        std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o755))
+            .map_err(|e| e.to_string())?;
+
+        // pin the core path and mint a fresh token
+        write_mode(&dir.join("core-path.txt"), core_exe, 0o644)?;
+        let token: String = (0..32)
+            .map(|_| char::from_digit(fastrand::u32(0..16), 16).unwrap())
+            .collect();
+        write_mode(&dir.join("service.token"), &token, 0o644)?;
+
+        let exe = target.to_string_lossy().to_string();
+        if cfg!(target_os = "macos") {
+            let plist = format!(
+                r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key><string>{LABEL}</string>
+    <key>ProgramArguments</key>
+    <array><string>{exe}</string><string>serve</string></array>
+    <key>RunAtLoad</key><true/>
+    <key>KeepAlive</key><true/>
+    <key>StandardOutPath</key><string>/tmp/mfork-service.log</string>
+    <key>StandardErrorPath</key><string>/tmp/mfork-service.log</string>
+</dict>
+</plist>
+"#
+            );
+            write_mode(&plist_path(), &plist, 0o644)?;
+            run(
+                "launchctl",
+                &["bootstrap", "system", &plist_path().to_string_lossy()],
+            )?;
+        } else {
+            let unit = format!(
+                "[Unit]\nDescription=Mfork elevated service (mihomo core for TUN)\nAfter=network.target\n\n\
+                 [Service]\nExecStart={exe} serve\nRestart=on-failure\nRestartSec=2\n\n\
+                 [Install]\nWantedBy=multi-user.target\n"
+            );
+            write_mode(&unit_path(), &unit, 0o644)?;
+            run("systemctl", &["daemon-reload"])?;
+            run("systemctl", &["enable", "--now", "mfork-service.service"])?;
+        }
+        println!("installed and started");
+        Ok(())
+    }
+
+    fn stop_daemon() {
+        if cfg!(target_os = "macos") {
+            let _ = run("launchctl", &["bootout", &format!("system/{LABEL}")]);
+        } else {
+            let _ = run("systemctl", &["disable", "--now", "mfork-service.service"]);
+        }
+        // give the old process a moment to release the port
+        std::thread::sleep(std::time::Duration::from_millis(500));
+    }
+
+    pub fn uninstall() -> Result<(), String> {
+        stop_daemon();
+        if cfg!(target_os = "macos") {
+            let _ = std::fs::remove_file(plist_path());
+        } else {
+            let _ = std::fs::remove_file(unit_path());
+            let _ = run("systemctl", &["daemon-reload"]);
+        }
+        let _ = std::fs::remove_dir_all(install_dir());
+        println!("uninstalled");
+        Ok(())
+    }
+
+    /// launchd/systemd stop the daemon with SIGTERM: turn that into a
+    /// clean shutdown so the core child is killed too.
+    pub fn install_signal_handlers() {
+        extern "C" fn on_term(_: libc::c_int) {
+            STOPPING.store(true, Ordering::SeqCst);
+        }
+        let h = on_term as extern "C" fn(libc::c_int) as libc::sighandler_t;
+        unsafe {
+            libc::signal(libc::SIGTERM, h);
+            libc::signal(libc::SIGINT, h);
+        }
+    }
+}
+
+#[cfg(unix)]
 fn main() {
-    eprintln!("mfork-service is Windows-only; TUN on other platforms is handled differently");
-    std::process::exit(1);
+    let arg = std::env::args().nth(1);
+    let result = match arg.as_deref() {
+        Some("install") => {
+            let core = std::env::args().nth(2).unwrap_or_default();
+            unix::install(&core)
+        }
+        Some("uninstall") => unix::uninstall(),
+        _ => {
+            unix::install_signal_handlers();
+            serve();
+            Ok(())
+        }
+    };
+    if let Err(e) = result {
+        eprintln!("{e}");
+        std::process::exit(1);
+    }
 }

@@ -68,3 +68,17 @@
 | 下載並安裝 | 進度 → 「安裝完成,正在重啟…」→ 應用重啟為新版本(Windows 為靜默安裝) |
 | 無新版本 | 「已是最新版本」 |
 | endpoint 不可達 | 顯示「檢查更新失敗」 |
+
+## 7. macOS / Linux 提權服務（待實機驗證）
+
+前置：在該平台 `node scripts/fetch-core.mjs && node scripts/build-service.mjs && pnpm tauri build`，安裝產出的 .dmg / .AppImage / .deb。
+
+| 步驟 | 預期 |
+|---|---|
+| 設置 → TUN 模式 → 安裝服務 | macOS 彈系統管理員密碼框(osascript),Linux 彈 polkit 授權;完成後狀態變「運行中 · 內核可以 SYSTEM 權限啟動」 |
+| 檢查安裝痕跡 | macOS:`/Library/LaunchDaemons/app.mfork.service.plist` 與 `/Library/Application Support/Mfork/{mfork-service,service.token,core-path.txt}`;Linux:`/etc/systemd/system/mfork-service.service` 與 `/usr/local/lib/mfork/` |
+| 啟用 TUN | 內核由 root 啟動,`ifconfig` / `ip a` 出現 utun/Mihomo 接口,瀏覽器流量走代理 |
+| 內核升級後 | 再彈一次授權重新釘定 core-path.txt 指向 `core-bin/`,TUN 仍可用 |
+| 退出 GUI | daemon 仍在,內核已停(`ps` 無 mihomo) |
+| 卸載服務 | 授權後 plist/unit 與安裝目錄被移除,狀態回「未安裝」 |
+| 故障排查 | macOS 看 `/tmp/mfork-service.log`,Linux 看 `systemctl status mfork-service` |

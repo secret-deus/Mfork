@@ -1,5 +1,0 @@
-{
-  "bundle": {
-    "resources": ["resources/mihomo/*", "resources/service/*"]
-  }
-}
