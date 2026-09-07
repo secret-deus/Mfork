@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
-import "@fontsource-variable/inter";
+import "@fontsource-variable/lexend";
 import "@fontsource-variable/space-grotesk";
 import "./index.css";
 

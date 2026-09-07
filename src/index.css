@@ -85,7 +85,7 @@
   --color-ok: var(--t-ok);
   --color-warn: var(--t-warn);
   --color-err: var(--t-err);
-  --font-sg: "Space Grotesk Variable", "Space Grotesk", "Inter Variable", system-ui, sans-serif;
+  --font-sg: "Space Grotesk Variable", "Space Grotesk", "Lexend Variable", system-ui, sans-serif;
 }
 
 html,
@@ -98,9 +98,8 @@ body {
   margin: 0;
   background: var(--t-bg);
   color: var(--t-fg);
-  font-family: "Inter Variable", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
-  font-weight: 550;
-  font-feature-settings: "cv11", "ss01";
+  font-family: "Lexend Variable", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+  font-weight: 500;
   -webkit-font-smoothing: antialiased;
   user-select: none;
   overflow: hidden;
@@ -112,18 +111,41 @@ select option {
   color: var(--t-fg);
 }
 
+/* thin overlay-style scrollbars (WebView2 / WebKit) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--t-line-strong);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--t-faint);
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-button {
+  display: none;
+  height: 0;
+}
+
 /* editorial micro-labels */
 .cap {
   font-size: 12px;
   font-weight: 600;
-  letter-spacing: 3px;
+  letter-spacing: 2.5px;
   color: var(--t-fg);
   text-transform: uppercase;
 }
 .cap2 {
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 2px;
+  letter-spacing: 1.5px;
   color: var(--t-label);
   text-transform: uppercase;
 }

@@ -74,9 +74,9 @@ function Row({
 }) {
   return (
     <div
-      className={`flex items-center justify-between gap-4 py-3.5 ${last ? "" : "border-b border-line-soft"}`}
+      className={`flex items-center justify-between gap-6 py-4 ${last ? "" : "border-b border-line-soft"}`}
     >
-      <div className="min-w-0">
+      <div className="min-w-0 shrink">
         <div className="text-[13.5px] text-fg-2">{label}</div>
         {sub ? <div className="mt-0.5 text-[12.5px] text-fg-3 select-text">{sub}</div> : null}
       </div>
@@ -1027,17 +1027,20 @@ function AboutSection() {
 export default function Settings() {
   const t = useT();
   return (
-    <div className="flex h-full min-w-0 flex-col overflow-y-auto px-14 pb-8 pt-13">
-      <div className="cap">{t("Mfork · 设置 Settings")}</div>
-      <div className="mt-7 grid grid-cols-2 content-start gap-x-16 gap-y-8">
-        <CoreSection />
-        <NetworkSection />
-        <SystemSection />
-        <TunSection />
-        <DnsSection />
-        <AppearanceSection />
-        <BackupSection />
-        <AboutSection />
+    <div className="flex h-full min-w-0 flex-col pt-8">
+      {/* the scroll area sits under the drag strip so the scrollbar never runs into the window buttons */}
+      <div className="min-h-0 flex-1 overflow-y-auto px-14 pt-5 pb-10">
+        <div className="cap">{t("Mfork · 设置 Settings")}</div>
+        <div className="mt-8 grid grid-cols-2 content-start gap-x-20 gap-y-10">
+          <CoreSection />
+          <NetworkSection />
+          <SystemSection />
+          <TunSection />
+          <DnsSection />
+          <AppearanceSection />
+          <BackupSection />
+          <AboutSection />
+        </div>
       </div>
     </div>
   );

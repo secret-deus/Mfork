@@ -133,6 +133,7 @@ const en: Record<string, string> = {
   "下载总量": "Downloaded",
   "上传总量": "Uploaded",
   "暂无经过内核的连接": "No connections through the core yet",
+  "流量": "Traffic",
   "来源": "Source",
   "目标": "Destination",
   "↓ 速率": "↓ Rate",

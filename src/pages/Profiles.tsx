@@ -157,7 +157,7 @@ export default function Profiles() {
             const used = p.sub ? p.sub.upload + p.sub.download : 0;
             const pct = p.sub && p.sub.total > 0 ? Math.min(100, (used / p.sub.total) * 100) : 0;
             return (
-              <div key={p.id} className="flex flex-col gap-3 border-b border-line-soft py-6">
+              <div key={p.id} className="flex flex-col gap-4 border-b border-line-soft py-7">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     {active ? (
@@ -178,19 +178,19 @@ export default function Profiles() {
                       </button>
                     )}
                   </div>
-                  <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-7">
                     {p.url ? (
-                      <div className="flex items-center gap-2" title={t("自动更新间隔")}>
-                        <span className="cap2">{t("自动更新")}</span>
+                      <div className="flex items-center gap-3.5" title={t("自动更新间隔")}>
+                        <span className="cap2 mr-1">{t("自动更新")}</span>
                         {INTERVALS.map((it) => (
                           <button
                             key={it.v}
                             onClick={() =>
                               void run(p.id, async () => profileSetInterval(p.id, it.v))
                             }
-                            className={`text-[11px] tracking-[1px] ${
+                            className={`text-[12px] tracking-[0.5px] ${
                               p.interval_hours === it.v
-                                ? "text-accent"
+                                ? "text-accent font-semibold"
                                 : "text-dim hover:text-mut"
                             }`}
                           >
@@ -199,6 +199,7 @@ export default function Profiles() {
                         ))}
                       </div>
                     ) : null}
+                    {p.url ? <div className="h-3.5 w-px bg-line" /> : null}
                     {p.url ? (
                       <button
                         onClick={() => void doUpdate(p)}

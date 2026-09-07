@@ -32,9 +32,20 @@ function rate(n: number): string {
 }
 
 const thBase =
-  "text-left whitespace-nowrap py-2.5 pr-3 text-[10.5px] font-semibold uppercase tracking-[2px] select-none";
+  "text-left whitespace-nowrap py-3 pr-4 text-[11px] font-semibold uppercase tracking-[1.5px] select-none";
 const tdCls =
-  "whitespace-nowrap overflow-hidden text-ellipsis py-2.5 pr-3 text-[13px] border-t border-line-soft";
+  "whitespace-nowrap overflow-hidden text-ellipsis py-3 pr-4 text-[13.5px] border-t border-line-soft";
+
+/** "↓ a / ↑ b" pair for one cell; dims the arrow of an idle direction */
+function Pair({ down, up, downOn, upOn }: { down: string; up: string; downOn: boolean; upOn: boolean }) {
+  return (
+    <span className="font-sg">
+      <span className={downOn ? "text-ok" : "text-dim"}>↓ {down}</span>
+      <span className="mx-1.5 text-faint">/</span>
+      <span className={upOn ? "text-accent" : "text-dim"}>↑ {up}</span>
+    </span>
+  );
+}
 
 function Th({
   label,
@@ -205,7 +216,7 @@ export default function Connections() {
         </div>
       </div>
 
-      <div className="mt-6 flex items-center gap-3 border-b border-line-strong pb-2.5">
+      <div className="mt-7 flex items-center gap-4 border-b border-line-strong pb-3">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" className="text-mut">
           <circle cx="11" cy="11" r="7" />
           <path d="m21 21-4.3-4.3" />
@@ -251,18 +262,15 @@ export default function Connections() {
           <table className="w-full table-fixed border-collapse">
             <thead>
               <tr>
-                <Th label={t("主机")} k="host" sort={sort} onSort={onSort} width="17%" />
+                <Th label={t("主机")} k="host" sort={sort} onSort={onSort} width="19%" />
                 <Th label={t("来源")} sort={sort} onSort={onSort} width="11%" />
                 <Th label={t("目标")} sort={sort} onSort={onSort} width="12%" />
-                <Th label={t("进程")} k="process" sort={sort} onSort={onSort} width="10%" />
-                <Th label={t("网络")} sort={sort} onSort={onSort} width="5%" />
-                <Th label={t("规则")} sort={sort} onSort={onSort} width="10%" />
-                <Th label={t("链路")} sort={sort} onSort={onSort} width="11%" />
-                <Th label={t("↓ 速率")} k="downSpeed" sort={sort} onSort={onSort} width="6%" />
-                <Th label={t("↑ 速率")} k="upSpeed" sort={sort} onSort={onSort} width="6%" />
-                <Th label={t("下载")} k="download" sort={sort} onSort={onSort} width="5%" />
-                <Th label={t("上传")} k="upload" sort={sort} onSort={onSort} width="5%" />
-                <Th label={t("时长")} k="start" sort={sort} onSort={onSort} width="5%" />
+                <Th label={t("进程")} k="process" sort={sort} onSort={onSort} width="8%" />
+                <Th label={t("规则")} sort={sort} onSort={onSort} width="11%" />
+                <Th label={t("链路")} sort={sort} onSort={onSort} width="12%" />
+                <Th label={t("速率")} k="downSpeed" sort={sort} onSort={onSort} width="10%" />
+                <Th label={t("流量")} k="download" sort={sort} onSort={onSort} width="8%" />
+                <Th label={t("时长")} k="start" sort={sort} onSort={onSort} width="6%" />
                 <Th label="" sort={sort} onSort={onSort} width="3%" />
               </tr>
             </thead>
@@ -275,7 +283,12 @@ export default function Connections() {
                       className={`group cursor-pointer ${isOpen ? "bg-surface" : "hover:bg-surface/60"}`}
                       onClick={() => setOpen(isOpen ? null : c.id)}
                     >
-                      <td className={`${tdCls} text-fg`}>{hostOf(c)}</td>
+                      <td className={`${tdCls} text-fg`}>
+                        {hostOf(c)}
+                        <span className="ml-2 text-[10.5px] font-semibold uppercase tracking-[1px] text-label">
+                          {c.metadata.network}
+                        </span>
+                      </td>
                       <td className={`${tdCls} font-sg text-[12px] text-fg-3`}>{endpoint(c.metadata.sourceIP, c.metadata.sourcePort)}</td>
                       <td className={`${tdCls} font-sg text-[12px] ${c.metadata.destinationIP ? "text-fg-3" : "text-dim"}`}>
                         {c.metadata.destinationIP
@@ -283,15 +296,16 @@ export default function Connections() {
                           : t("远端解析")}
                       </td>
                       <td className={`${tdCls} text-fg-3`}>{procName(c)}</td>
-                      <td className={`${tdCls} text-[11px] font-semibold uppercase tracking-[1px] text-label`}>
-                        {c.metadata.network}
+                      <td className={`${tdCls} text-[13px] text-fg-3`}>{c.rule}{c.rulePayload ? ` · ${c.rulePayload}` : ""}</td>
+                      <td className={`${tdCls} text-[13px] text-fg-3`}>{[...c.chains].reverse().join(" » ")}</td>
+                      <td className={tdCls}>
+                        <Pair down={rate(c.downSpeed)} up={rate(c.upSpeed)} downOn={c.downSpeed > 0} upOn={c.upSpeed > 0} />
                       </td>
-                      <td className={`${tdCls} text-[12px] text-fg-3`}>{c.rule}{c.rulePayload ? ` · ${c.rulePayload}` : ""}</td>
-                      <td className={`${tdCls} text-[12px] text-fg-3`}>{[...c.chains].reverse().join(" » ")}</td>
-                      <td className={`${tdCls} font-sg ${c.downSpeed > 0 ? "text-ok" : "text-dim"}`}>{rate(c.downSpeed)}</td>
-                      <td className={`${tdCls} font-sg ${c.upSpeed > 0 ? "text-accent" : "text-dim"}`}>{rate(c.upSpeed)}</td>
-                      <td className={`${tdCls} font-sg text-fg-3`}>{formatBytes(c.download)}</td>
-                      <td className={`${tdCls} font-sg text-fg-3`}>{formatBytes(c.upload)}</td>
+                      <td className={`${tdCls} font-sg text-fg-3`}>
+                        {formatBytes(c.download)}
+                        <span className="mx-1.5 text-faint">/</span>
+                        {formatBytes(c.upload)}
+                      </td>
                       <td className={`${tdCls} font-sg text-fg-3`}>{formatDuration(c.start)}</td>
                       <td className={tdCls}>
                         <button
@@ -308,8 +322,8 @@ export default function Connections() {
                     </tr>
                     {isOpen ? (
                       <tr className="bg-surface">
-                        <td colSpan={13} className="border-t border-line-soft px-3 pb-4 pt-2">
-                          <div className="grid grid-cols-4 gap-x-8 gap-y-3 select-text">
+                        <td colSpan={10} className="border-t border-line-soft px-3 pb-5 pt-3">
+                          <div className="grid grid-cols-4 gap-x-10 gap-y-4 select-text">
                             <Detail label={t("五元组")} value={`${c.metadata.network.toUpperCase()}  ${endpoint(c.metadata.sourceIP, c.metadata.sourcePort)}  →  ${c.metadata.destinationIP ? endpoint(c.metadata.destinationIP, c.metadata.destinationPort) : `${c.metadata.host}:${c.metadata.destinationPort}（${t("远端解析")}）`}`} wide />
                             <Detail label={t("入站")} value={c.metadata.type || "—"} />
                             <Detail label={t("主机")} value={c.metadata.host || "—"} />
@@ -331,12 +345,10 @@ export default function Connections() {
           <table className="w-full table-fixed border-collapse">
             <thead>
               <tr>
-                <th className={`${thBase} text-label`} style={{ width: "30%" }}>{t("应用")}</th>
-                <th className={`${thBase} text-label`} style={{ width: "10%" }}>{t("连接数")}</th>
-                <th className={`${thBase} text-label`} style={{ width: "12%" }}>{t("下载速率")}</th>
-                <th className={`${thBase} text-label`} style={{ width: "12%" }}>{t("上传速率")}</th>
-                <th className={`${thBase} text-label`} style={{ width: "12%" }}>{t("下载总量")}</th>
-                <th className={`${thBase} text-label`} style={{ width: "12%" }}>{t("上传总量")}</th>
+                <th className={`${thBase} text-label`} style={{ width: "40%" }}>{t("应用")}</th>
+                <th className={`${thBase} text-label`} style={{ width: "12%" }}>{t("连接数")}</th>
+                <th className={`${thBase} text-label`} style={{ width: "24%" }}>{t("速率")}</th>
+                <th className={`${thBase} text-label`} style={{ width: "24%" }}>{t("流量")}</th>
               </tr>
             </thead>
             <tbody>
@@ -344,10 +356,14 @@ export default function Connections() {
                 <tr key={a.name} title={a.path}>
                   <td className={`${tdCls} text-fg`}>{a.name}</td>
                   <td className={`${tdCls} font-sg text-fg-3`}>{a.count}</td>
-                  <td className={`${tdCls} font-sg ${a.downSpeed > 0 ? "text-ok" : "text-dim"}`}>{rate(a.downSpeed)}</td>
-                  <td className={`${tdCls} font-sg ${a.upSpeed > 0 ? "text-accent" : "text-dim"}`}>{rate(a.upSpeed)}</td>
-                  <td className={`${tdCls} font-sg text-fg-3`}>{formatBytes(a.down)}</td>
-                  <td className={`${tdCls} font-sg text-fg-3`}>{formatBytes(a.up)}</td>
+                  <td className={tdCls}>
+                    <Pair down={rate(a.downSpeed)} up={rate(a.upSpeed)} downOn={a.downSpeed > 0} upOn={a.upSpeed > 0} />
+                  </td>
+                  <td className={`${tdCls} font-sg text-fg-3`}>
+                    {formatBytes(a.down)}
+                    <span className="mx-1.5 text-faint">/</span>
+                    {formatBytes(a.up)}
+                  </td>
                 </tr>
               ))}
             </tbody>
