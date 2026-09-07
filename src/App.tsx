@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useApp } from "./store";
 import { useT } from "./i18n";
 import Overview from "./pages/Overview";
@@ -20,6 +21,27 @@ import {
   IconRules,
   IconSettings,
 } from "./components/icons";
+
+const IS_MAC = /Mac|iPhone|iPad/.test(navigator.userAgent);
+
+/** Windows / Linux: the window is frameless, so draw our own controls. */
+function WindowControls() {
+  const win = getCurrentWindow();
+  const btn = "flex h-7 w-9 items-center justify-center text-mut transition-colors hover:text-fg";
+  return (
+    <div className="flex">
+      <button className={btn} onClick={() => void win.minimize()} title="—">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2"><path d="M1 5h8" /></svg>
+      </button>
+      <button className={btn} onClick={() => void win.toggleMaximize()}>
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2"><rect x="1.5" y="1.5" width="7" height="7" rx="1" /></svg>
+      </button>
+      <button className={`${btn} hover:text-err`} onClick={() => void win.close()}>
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" /></svg>
+      </button>
+    </div>
+  );
+}
 
 const NAV = [
   { key: "overview", label: "概览", icon: IconOverview },
@@ -46,8 +68,18 @@ export default function App() {
   }, []);
 
   return (
-    <div className="flex h-full">
-      <aside className="z-10 flex w-16 shrink-0 flex-col items-center gap-1 border-r border-line-soft py-3.5">
+    <div className="relative flex h-full">
+      {/* frameless window: the top strip (and the sidebar background) drags the window */}
+      <div data-tauri-drag-region className="absolute inset-x-0 top-0 z-20 h-8" />
+      {!IS_MAC ? (
+        <div className="absolute top-0 right-0 z-30">
+          <WindowControls />
+        </div>
+      ) : null}
+      <aside
+        data-tauri-drag-region
+        className={`z-10 flex w-16 shrink-0 flex-col items-center gap-1 border-r border-line-soft ${IS_MAC ? "pt-9 pb-3.5" : "py-3.5"}`}
+      >
         <div className="mb-4 flex h-[30px] w-[30px] items-center justify-center rounded-[9px] bg-logo-bg text-logo-fg">
           <ForkLogo />
         </div>

@@ -105,6 +105,41 @@ const HINTS: [RegExp, keyof typeof CITY][] = [
   [/中国|中國|china|🇨🇳|\bchn\b|\bcn\b/i, "cn_sh"],
 ];
 
+const NAME: Record<keyof typeof CITY, string> = {
+  hk: "香港", tw: "台北", jp: "东京", kr: "首尔", sg: "新加坡", my: "吉隆坡", th: "曼谷", vn: "胡志明市",
+  ph: "马尼拉", id: "雅加达", in: "孟买", ae: "迪拜", tr: "伊斯坦布尔", ru: "莫斯科", de: "法兰克福",
+  fr: "巴黎", gb: "伦敦", nl: "阿姆斯特丹", se: "斯德哥尔摩", fi: "赫尔辛基", ch: "苏黎世", it: "罗马",
+  es: "马德里", pl: "华沙", ua: "基辅", us_la: "洛杉矶", us_sj: "圣何塞", us_sea: "西雅图", us_ny: "纽约",
+  us_dal: "达拉斯", us_chi: "芝加哥", ca: "多伦多", mx: "墨西哥城", br: "圣保罗", ar: "布宜诺斯艾利斯",
+  cl: "圣地亚哥", au: "悉尼", nz: "奥克兰", za: "约翰内斯堡", eg: "开罗", il: "特拉维夫", cn_sh: "上海",
+  cn_bj: "北京", cn_gz: "广州", cn_sz: "深圳", mo: "澳门",
+};
+
+export interface Place {
+  pos: LonLat;
+  region: string;
+}
+
+export function locateNodeDetail(name: string): Place | null {
+  for (const [re, key] of HINTS) {
+    if (re.test(name)) return { pos: CITY[key], region: NAME[key] };
+  }
+  return null;
+}
+
+export function locateSelfDetail(): Place {
+  let tz = "";
+  try {
+    tz = Intl.DateTimeFormat().resolvedOptions().timeZone ?? "";
+  } catch {
+    /* ignore */
+  }
+  for (const [re, key] of TZ) {
+    if (re.test(tz)) return { pos: CITY[key], region: NAME[key] };
+  }
+  return { pos: CITY.cn_sh, region: NAME.cn_sh };
+}
+
 export function locateNode(name: string): LonLat | null {
   for (const [re, key] of HINTS) {
     if (re.test(name)) return CITY[key];

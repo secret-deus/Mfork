@@ -35,6 +35,8 @@ export interface ProxyNode {
   type: string;
   udp: boolean;
   history: { time: string; delay: number }[];
+  /** chained outbound: this node dials through that proxy (node or group) */
+  "dialer-proxy"?: string;
 }
 
 export interface ProxyGroup {

@@ -1,7 +1,7 @@
 # Mfork 設計文檔
 
 > **Mfork** — 一個對標 Sparkle 功能範圍的 mihomo 桌面客戶端。Windows 優先落地，macOS / Linux 共用同一套代碼（含提權服務）。
-> 品牌：logo 為「分流 Fork」單色幾何標（一條流量分成兩路）；視覺定稿為「雜誌排版」方向——Space Grotesk 大字號數字、留白、髮絲線代替卡片、64px 圖標欄導航、中性近黑底 #0b0c0f。配色在 macOS 實機驗證後重定（2026-09）：正文 Inter Variable 500 字重、數字 Space Grotesk；主文字 #f5f6f8、說明文字 #c4cbd5（不再使用中灰）、微標籤金黃 #ffd166、動作/單位/選中態純藍 #4f9cff（不用紫調）、狀態薄荷綠 #62e39a、錯誤 #ff6b6b。完整設計稿見 design/ 目錄與 Artifact 畫布。
+> 品牌：logo 為「分流 Fork」單色幾何標（一條流量分成兩路）；視覺定稿為「雜誌排版」方向——Space Grotesk 大字號數字、留白、髮絲線代替卡片、64px 圖標欄導航、中性近黑底 #0b0c0f。配色在 macOS 實機驗證後重定（2026-09，方案 C「只有兩種彩色」）：正文 Inter Variable 500 字重、數字 Space Grotesk；主文字 #f5f6f8、說明文字 #c4cbd5、微標籤近白 #e8ebf0（不再使用中灰，也不用黃色與紫調）；彩色只留兩種——動作/單位/選中態純藍 #4f9cff、狀態薄荷綠 #62e39a；橙 #ffb86b 只做語義警告、錯誤 #ff6b6b。地球：海 #171a21、陸地 #454c58、陸緣 #5b6473（淺色主題對應更淡的灰）。完整設計稿見 design/ 目錄與 Artifact 畫布。
 
 ## 1. 技術棧
 
@@ -85,7 +85,7 @@ macOS / Linux 的 daemon 收到 SIGTERM 時先殺內核子進程再退出；內�
 
 | 頁面 | 內容 |
 |---|---|
-| **概覽** | 實時速率大字（WS `/traffic`）、內存佔用、活動連接數、模式三選（規則/全局/直連）、系統代理快捷開關、內核狀態；右側**節點地球**（`components/Globe.tsx`）：d3-geo 正交投影 + world-atlas land-110m 大陸剪影，出血裁切，只標最近一次測速成功的節點，本機→當前節點大圓流光，內核運行時緩慢自轉。節點座標由名稱中的地區提示推斷（`lib/geo.ts`：國家碼 / 中文地名 / 旗幟 emoji），本機由 IANA 時區推斷；當前節點沿策略組 `now` 鏈解析到真實節點 |
+| **概覽** | 實時速率大字（WS `/traffic`）、內存佔用、活動連接數、模式三選（規則/全局/直連）、系統代理快捷開關、內核狀態；右側**節點地球**（`components/Globe.tsx`）：d3-geo 正交投影 + world-atlas land-110m 大陸剪影，出血裁切，只標最近一次測速成功的節點；**通路**以浮在球面上方的弧線繪製（大圓路徑按距離抬升，背面裁掉、近邊緣淡出），從本機經每一跳到出口節點，沿線有流光；當前選中的通路藍色，其他有活動連接的通路綠色，線寬隨連接數增長；中間跳空心圓、出口實心脈衝圓。**鏈式代理完整展開**：mihomo 新版以 `dialer-proxy` 做鏈式（節點經另一節點/策略組撥出，`/proxies` 有該字段），沿 `dialer-proxy` 遞歸（策略組按 `now` 解析）得到「前置跳 → … → 出口」；舊版 Relay 組按成員順序展開。活動連接按出口節點歸併到完整鏈路；dialer-proxy 內層跳在 mihomo 中會以無規則的獨立連接出現，已過濾不重複計數。視角以本機為中心 ±14° 緩慢擺動而非自轉，節點不會轉出視野。節點座標由名稱中的地區提示推斷（`lib/geo.ts`：國家碼 / 中文地名 / 旗幟 emoji，並給出中文城市名），本機由 IANA 時區推斷；當前節點沿策略組 `now` 鏈解析到真實節點。地球下方的**通路條**用文字重述同一條鏈：本機（城市）→ 入口（TUN / 系統代理 / 混合端口）→ mihomo → 各跳（城市、連接數）→ Internet，並列出其他活動通路與直連數 |
 | **代理** | 策略組列表 → 組內節點網格；節點顯示延遲色階；一鍵組內測速（`/group/{name}/delay`）；隱藏不可用節點、排序選項 |
 | **訂閱** | 訂閱卡片（流量條、到期、上次更新）；新增（URL/本地文件）、更新、切換、刪除、自動更新間隔（手動/6h/12h/24h/72h）；原始 yaml 由覆寫機制修改，不直接編輯 |
 | **覆寫** | 覆寫文件列表（yaml/js）按順序全局應用到當前訂閱；啟用/停用、上下移；Monaco 編輯，保存即熱重載 |
@@ -112,6 +112,7 @@ macOS / Linux 的 daemon 收到 SIGTERM 時先殺內核子進程再退出；內�
 - 多語言：源字串即 key 的輕量 i18n（`src/i18n`），zh-CN / zh-TW / en，托盤菜單同步。
 - 應用更新：tauri-plugin-updater，endpoint 指向 GitHub Releases 的 `latest.json`，CI 用 `tauri-action` 產出並簽名。
 - 概覽節點地球：見第 3 節概覽行。
+- 窗口無系統標題欄：Windows / Linux `decorations: false`，頂部 32px 與左側圖標欄為拖拽區（`data-tauri-drag-region`），右上角自繪最小化 / 最大化 / 關閉（`core:window:allow-*` 能力）；macOS 用 `tauri.macos.conf.json` 覆蓋為 `titleBarStyle: Overlay` + `hiddenTitle`，保留原生紅黃綠燈，圖標欄頂部留 36px 讓位。
 - 提權服務跨平台：見 2.4；macOS / Linux 為交叉編譯檢查通過、待實機驗證。
 - 多語言：源字串即 key 的輕量 `t()`，托盤菜單由 Rust 側按 locale 重貼標籤。
 - 應用更新：`tauri-plugin-updater`，endpoint 為 GitHub Releases `latest.json`；CI 用 `tauri-apps/tauri-action` 簽名並建草稿 Release。

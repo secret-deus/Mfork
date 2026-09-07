@@ -52,7 +52,7 @@ function Th({
   const active = k && sort?.key === k;
   return (
     <th
-      className={`${thBase} ${k ? "cursor-pointer hover:text-fg" : ""} ${active ? "text-accent" : "text-mut"}`}
+      className={`${thBase} ${k ? "cursor-pointer hover:text-fg" : ""} ${active ? "text-accent" : "text-label"}`}
       style={{ width }}
       onClick={k ? () => onSort(k) : undefined}
     >
@@ -283,7 +283,7 @@ export default function Connections() {
                           : t("远端解析")}
                       </td>
                       <td className={`${tdCls} text-fg-3`}>{procName(c)}</td>
-                      <td className={`${tdCls} text-[10px] font-semibold uppercase tracking-[1px] ${c.metadata.network.toLowerCase() === "udp" ? "text-warn" : "text-accent"}`}>
+                      <td className={`${tdCls} text-[10px] font-semibold uppercase tracking-[1px] text-label`}>
                         {c.metadata.network}
                       </td>
                       <td className={`${tdCls} text-[11px] text-fg-3`}>{c.rule}{c.rulePayload ? ` · ${c.rulePayload}` : ""}</td>
@@ -331,12 +331,12 @@ export default function Connections() {
           <table className="w-full table-fixed border-collapse">
             <thead>
               <tr>
-                <th className={`${thBase} text-mut`} style={{ width: "30%" }}>{t("应用")}</th>
-                <th className={`${thBase} text-mut`} style={{ width: "10%" }}>{t("连接数")}</th>
-                <th className={`${thBase} text-mut`} style={{ width: "12%" }}>{t("下载速率")}</th>
-                <th className={`${thBase} text-mut`} style={{ width: "12%" }}>{t("上传速率")}</th>
-                <th className={`${thBase} text-mut`} style={{ width: "12%" }}>{t("下载总量")}</th>
-                <th className={`${thBase} text-mut`} style={{ width: "12%" }}>{t("上传总量")}</th>
+                <th className={`${thBase} text-label`} style={{ width: "30%" }}>{t("应用")}</th>
+                <th className={`${thBase} text-label`} style={{ width: "10%" }}>{t("连接数")}</th>
+                <th className={`${thBase} text-label`} style={{ width: "12%" }}>{t("下载速率")}</th>
+                <th className={`${thBase} text-label`} style={{ width: "12%" }}>{t("上传速率")}</th>
+                <th className={`${thBase} text-label`} style={{ width: "12%" }}>{t("下载总量")}</th>
+                <th className={`${thBase} text-label`} style={{ width: "12%" }}>{t("上传总量")}</th>
               </tr>
             </thead>
             <tbody>

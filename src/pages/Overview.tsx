@@ -1,26 +1,47 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useApp } from "../store";
 import { apiGet, formatBytes, formatRate } from "../lib/core";
 import { useT } from "../i18n";
-import Globe, { GlobeNode } from "../components/Globe";
-import { locateNode, locateSelf } from "../lib/geo";
+import Globe, { GlobeNode, GlobeRoute } from "../components/Globe";
+import { locateNode, locateNodeDetail, locateSelfDetail } from "../lib/geo";
 import { ProxyGroup, ProxyNode } from "../lib/types";
 
 const GROUP_TYPES = new Set(["Selector", "URLTest", "Fallback", "LoadBalance", "Relay"]);
 const BUILTIN = new Set(["DIRECT", "REJECT", "REJECT-DROP", "PASS", "COMPATIBLE", "GLOBAL"]);
 
+export interface Hop {
+  name: string;
+  pos: [number, number];
+  region: string;
+}
+
+interface GlobeData {
+  nodes: GlobeNode[];
+  /** hops of the selected route in travel order (chains expanded) */
+  currentHops: Hop[];
+  /** the selected route, hop names joined for display */
+  currentName: string | null;
+  /** every real outbound node → its full hop chain (dialer-proxy legs first,
+   *  the node itself last); nodes without a location still get an entry */
+  chains: Map<string, Hop[]>;
+  /** nodes that only serve as someone's dialer-proxy leg */
+  innerLegs: Set<string>;
+}
+
+const EMPTY: GlobeData = { nodes: [], currentHops: [], currentName: null, chains: new Map(), innerLegs: new Set() };
+
 /** Reachable nodes (last delay test succeeded) clustered by location, plus
- *  the node currently in use, resolved through the selector chain. */
-function useGlobeData() {
+ *  the route currently selected, resolved through the selector chain and
+ *  expanded into its full hop chain. mihomo chains outbounds with
+ *  `dialer-proxy` (a node dials through another node or group); legacy relay
+ *  groups are expanded member by member. */
+function useGlobeData(): GlobeData {
   const { api, phase, mode } = useApp();
-  const [data, setData] = useState<{ nodes: GlobeNode[]; current: GlobeNode | null }>({
-    nodes: [],
-    current: null,
-  });
+  const [data, setData] = useState<GlobeData>(EMPTY);
 
   useEffect(() => {
     if (phase !== "running" || !api) {
-      setData({ nodes: [], current: null });
+      setData(EMPTY);
       return;
     }
     let stop = false;
@@ -33,9 +54,49 @@ function useGlobeData() {
         const g = await apiGet<{ proxies: ProxyGroup[] }>(api, "/group");
         if (stop) return;
         const all = p.proxies;
+        const isNode = (n: string) =>
+          !!all[n] && !all[n].all && !GROUP_TYPES.has(all[n].type) && !BUILTIN.has(n.toUpperCase());
+        // group → the node it currently resolves to
+        const resolve = (start: string | undefined): string | undefined => {
+          const seen = new Set<string>();
+          let x = start;
+          while (x && all[x]?.now && !seen.has(x)) {
+            seen.add(x);
+            x = all[x].now;
+          }
+          return x;
+        };
+        // full chain in travel order: dialer-proxy legs first, exit last
+        const chainNames = (start: string): string[] => {
+          const out: string[] = [];
+          const seen = new Set<string>();
+          let x: string | undefined = start;
+          while (x && !seen.has(x)) {
+            seen.add(x);
+            if (all[x]?.type === "Relay") {
+              out.unshift(...(all[x].all ?? []));
+              break;
+            }
+            out.unshift(x);
+            x = resolve(all[x]?.["dialer-proxy"]);
+          }
+          return out.filter((n) => !BUILTIN.has(n.toUpperCase()));
+        };
+        const toHops = (names: string[]): Hop[] =>
+          names
+            .map((n) => {
+              const d = locateNodeDetail(n);
+              return d ? { name: n, pos: d.pos, region: d.region } : null;
+            })
+            .filter((x): x is Hop => x !== null);
         const clusters = new Map<string, GlobeNode>();
+        const chains = new Map<string, Hop[]>();
+        const innerLegs = new Set<string>();
         for (const n of Object.values(all)) {
-          if (n.all || GROUP_TYPES.has(n.type) || BUILTIN.has(n.name.toUpperCase())) continue;
+          if (!isNode(n.name)) continue;
+          const names = chainNames(n.name);
+          chains.set(n.name, toHops(names));
+          for (const leg of names.slice(0, -1)) innerLegs.add(leg);
           const h = n.history;
           if (!h || h.length === 0 || h[h.length - 1].delay <= 0) continue;
           const pos = locateNode(n.name);
@@ -45,24 +106,37 @@ function useGlobeData() {
           if (c) c.count += 1;
           else clusters.set(key, { name: n.name, pos, count: 1 });
         }
-        // current node: GLOBAL's pick in global mode, else the first group's
-        let current: GlobeNode | null = null;
+        // selected route: GLOBAL's pick in global mode, else the group's
+        let currentHops: Hop[] = [];
+        let currentName: string | null = null;
         if (mode !== "direct") {
-          let name: string | undefined =
-            mode === "global"
-              ? all["GLOBAL"]?.now
-              : g.proxies.find((x) => x.name !== "GLOBAL")?.now;
+          // rule mode: the group most live connections pass through, else
+          // the first Selector, else the first group
+          const groups = g.proxies.filter((x) => x.name !== "GLOBAL");
+          const votes = new Map<string, number>();
+          for (const c of useApp.getState().snapshot?.connections ?? []) {
+            const grp = c.chains[1];
+            if (grp && groups.some((x) => x.name === grp)) votes.set(grp, (votes.get(grp) ?? 0) + 1);
+          }
+          const voted = [...votes.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+          const pick =
+            groups.find((x) => x.name === voted) ??
+            groups.find((x) => x.type === "Selector" && !BUILTIN.has((x.now ?? "").toUpperCase())) ??
+            groups.find((x) => x.type === "Selector") ??
+            groups[0];
+          let name: string | undefined = mode === "global" ? all["GLOBAL"]?.now : pick?.now;
           const seen = new Set<string>();
           while (name && all[name]?.now && !seen.has(name)) {
             seen.add(name);
             name = all[name].now;
           }
           if (name && !BUILTIN.has(name.toUpperCase())) {
-            const pos = locateNode(name);
-            if (pos) current = { name, pos, count: 1 };
+            const names = chainNames(name);
+            currentName = names.length ? names.join(" → ") : name;
+            currentHops = toHops(names);
           }
         }
-        setData({ nodes: [...clusters.values()], current });
+        setData({ nodes: [...clusters.values()], currentHops, currentName, chains, innerLegs });
       } catch {
         /* core restarting: keep the last frame */
       }
@@ -127,7 +201,60 @@ export default function Overview() {
   const dl = formatRate(down);
   const ul = formatRate(up);
   const globe = useGlobeData();
-  const self = useMemo(locateSelf, []);
+  const self = useMemo(locateSelfDetail, []);
+  const snapshot = useApp((s) => s.snapshot);
+
+  // live routes: connections grouped by their exit node, expanded into the
+  // full hop chain. mihomo lists a connection's chain exit-first, and the
+  // inner leg of a dialer-proxy chain shows up as its own rule-less
+  // connection on the dialer node, so those are skipped rather than counted
+  // as a second route.
+  const live = useMemo(() => {
+    const m = new Map<string, { hops: Hop[]; conns: number }>();
+    let direct = 0;
+    let total = 0;
+    for (const c of snapshot?.connections ?? []) {
+      const exit = c.chains[0];
+      if (!exit) continue;
+      if (!c.rule && globe.innerLegs.has(exit)) continue;
+      total += 1;
+      if (exit.toUpperCase() === "DIRECT") {
+        direct += 1;
+        continue;
+      }
+      if (BUILTIN.has(exit.toUpperCase())) continue;
+      let hops = globe.chains.get(exit);
+      if (!hops) {
+        const d = locateNodeDetail(exit);
+        hops = d ? [{ name: exit, pos: d.pos, region: d.region }] : [];
+      }
+      if (hops.length === 0) continue;
+      const key = hops.map((h) => h.name).join(" » ");
+      const e = m.get(key);
+      if (e) e.conns += 1;
+      else m.set(key, { hops, conns: 1 });
+    }
+    const routes = [...m.entries()]
+      .map(([key, v]) => ({ key, ...v }))
+      .sort((a, b) => b.conns - a.conns);
+    return { routes, direct, total };
+  }, [snapshot, globe.chains, globe.innerLegs]);
+
+  const currentKey = globe.currentHops.map((h) => h.name).join(" » ");
+  const currentLiveRoute = live.routes.find((r) => r.key === currentKey);
+  const routes: GlobeRoute[] = useMemo(() => {
+    const out: GlobeRoute[] = [];
+    if (globe.currentHops.length)
+      out.push({ key: currentKey, hops: globe.currentHops, conns: currentLiveRoute?.conns ?? 0, tone: "accent" });
+    for (const r of live.routes) if (r.key !== currentKey) out.push({ key: r.key, hops: r.hops, conns: r.conns, tone: "ok" });
+    return out;
+  }, [globe.currentHops, currentKey, currentLiveRoute, live.routes]);
+
+  const entry = settings?.tun.enable
+    ? "TUN"
+    : settings?.system_proxy
+      ? t("系统代理")
+      : t("混合端口 {port}", { port: api?.mixed_port ?? "—" });
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden px-14 pb-10 pt-13">
@@ -136,12 +263,7 @@ export default function Overview() {
         className="pointer-events-none absolute top-1/2 -right-[14vh] h-[96vh] w-[96vh] -translate-y-1/2 select-none"
         aria-hidden
       >
-        <Globe
-          self={self}
-          nodes={globe.nodes}
-          current={globe.current}
-          active={phase === "running"}
-        />
+        <Globe self={self.pos} nodes={globe.nodes} routes={routes} active={phase === "running"} />
       </div>
       <div className="relative z-10 flex items-center justify-between">
         <div className="cap">{t("Mfork · 概览 Overview")}</div>
@@ -240,15 +362,59 @@ export default function Overview() {
 
       <div className="relative z-10 flex w-[470px] flex-col gap-3">
         {phase === "running" ? (
-          <div className="cap2">
-            {globe.current
-              ? t("当前节点 · {name}", { name: globe.current.name })
-              : mode === "direct"
-                ? t("直连模式 · 不经过节点")
-                : t("当前节点位置未知")}
-            {globe.nodes.length > 0
-              ? ` · ${t("{n} 处可用节点", { n: globe.nodes.length })}`
-              : ""}
+          <div className="flex flex-col gap-1.5">
+            <div className="cap2">
+              {globe.currentName
+                ? t("当前节点 · {name}", { name: globe.currentName })
+                : mode === "direct"
+                  ? t("直连模式 · 不经过节点")
+                  : t("当前节点位置未知")}
+              {globe.nodes.length > 0
+                ? ` · ${t("{n} 处可用节点", { n: globe.nodes.length })}`
+                : ""}
+            </div>
+            {/* network path: local → entry → core → exit node → internet */}
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px]">
+              <span className="cap2 !text-fg-3">{t("通路")}</span>
+              <HopEl label={t("本机")} sub={self.region} />
+              <Arrow />
+              <HopEl label={entry} />
+              <Arrow />
+              <HopEl label="mihomo" />
+              <Arrow />
+              {mode === "direct" ? (
+                <HopEl label="DIRECT" sub={t("{n} 条连接", { n: live.total })} tone="ok" />
+              ) : globe.currentHops.length ? (
+                globe.currentHops.map((hp, i) => (
+                  <Fragment key={hp.name}>
+                    {i > 0 ? <Arrow /> : null}
+                    <HopEl
+                      label={hp.name}
+                      sub={
+                        i === globe.currentHops.length - 1 && currentLiveRoute
+                          ? `${hp.region} · ${t("{n} 条连接", { n: currentLiveRoute.conns })}`
+                          : hp.region
+                      }
+                      tone="accent"
+                    />
+                  </Fragment>
+                ))
+              ) : (
+                <HopEl label={globe.currentName ?? t("节点")} />
+              )}
+              <Arrow />
+              <HopEl label="Internet" />
+              {live.routes
+                .filter((r) => r.key !== currentKey)
+                .map((r) => (
+                  <span key={r.key} className="ml-2 text-ok">
+                    · {r.hops.map((h) => h.name).join(" → ")} {t("{n} 条连接", { n: r.conns })}
+                  </span>
+                ))}
+              {mode !== "direct" && live.direct > 0 ? (
+                <span className="ml-2 text-fg-3">· DIRECT {t("{n} 条连接", { n: live.direct })}</span>
+              ) : null}
+            </div>
           </div>
         ) : null}
         {error ? (
@@ -287,4 +453,18 @@ export default function Overview() {
       </div>
     </div>
   );
+}
+
+function HopEl({ label, sub, tone }: { label: string; sub?: string; tone?: "ok" | "accent" }) {
+  const c = tone === "ok" ? "text-ok" : tone === "accent" ? "text-accent" : "text-fg";
+  return (
+    <span className="inline-flex items-baseline gap-1">
+      <span className={`font-semibold ${c}`}>{label}</span>
+      {sub ? <span className="text-[10px] text-fg-3">{sub}</span> : null}
+    </span>
+  );
+}
+
+function Arrow() {
+  return <span className="text-dim">→</span>;
 }

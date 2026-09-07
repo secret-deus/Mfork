@@ -45,6 +45,11 @@ const en: Record<string, string> = {
   "直连模式 · 不经过节点": "Direct mode · no node in use",
   "当前节点位置未知": "Current node location unknown",
   "{n} 处可用节点": "{n} reachable locations",
+  "通路": "Path",
+  "本机": "Local",
+  "混合端口 {port}": "Mixed port {port}",
+  "{n} 条连接": "{n} conns",
+  "节点": "Node",
 
   // ---- proxies
   "排序": "Sort",

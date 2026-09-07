@@ -22,8 +22,13 @@
   --t-nav-active: rgba(255, 255, 255, 0.06);
   --t-accent: #4f9cff;
   --t-ok: #62e39a;
-  --t-warn: #ffd166;
+  --t-warn: #ffb86b;
   --t-err: #ff6b6b;
+  --t-label: #e8ebf0;
+  --t-globe-sea: #171a21;
+  --t-globe-rim: #3f4652;
+  --t-globe-land: #454c58;
+  --t-globe-edge: #5b6473;
 }
 
 :root[data-theme="light"] {
@@ -45,6 +50,11 @@
   --t-logo-bg: #141518;
   --t-logo-fg: #f7f7f8;
   --t-nav-active: rgba(0, 0, 0, 0.06);
+  --t-label: #2b2e33;
+  --t-globe-sea: #ffffff;
+  --t-globe-rim: #cbcfd6;
+  --t-globe-land: #d5d9e0;
+  --t-globe-edge: #b8bec8;
   --t-accent: #2b6fe0;
   --t-ok: #1f9d5c;
   --t-warn: #a8801a;
@@ -70,6 +80,7 @@
   --color-logo-bg: var(--t-logo-bg);
   --color-logo-fg: var(--t-logo-fg);
   --color-nav-active: var(--t-nav-active);
+  --color-label: var(--t-label);
   --color-accent: var(--t-accent);
   --color-ok: var(--t-ok);
   --color-warn: var(--t-warn);
@@ -106,13 +117,13 @@ select option {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 3px;
-  color: var(--t-fg-2);
+  color: var(--t-fg);
   text-transform: uppercase;
 }
 .cap2 {
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 2px;
-  color: var(--t-warn);
+  color: var(--t-label);
   text-transform: uppercase;
 }
