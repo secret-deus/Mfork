@@ -78,7 +78,7 @@ function Row({
     >
       <div className="min-w-0">
         <div className="text-[12.5px] text-fg-2">{label}</div>
-        {sub ? <div className="mt-0.5 text-[10.5px] text-dim select-text">{sub}</div> : null}
+        {sub ? <div className="mt-0.5 text-[11.5px] text-fg-3 select-text">{sub}</div> : null}
       </div>
       {right}
     </div>
@@ -892,7 +892,7 @@ function BackupSection() {
               >
                 <div className="min-w-0">
                   <div className="truncate font-sg text-[11.5px] text-fg-3">{b.name}</div>
-                  <div className="text-[10px] text-dim">
+                  <div className="text-[11px] text-mut">
                     {formatBytes(b.size)}
                     {b.modified ? ` · ${b.modified}` : ""}
                   </div>

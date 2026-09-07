@@ -4,17 +4,17 @@
 :root {
   --t-bg: #0b0c0f;
   --t-surface: #121317;
-  --t-line-faint: #161920;
-  --t-line-soft: #1a1d23;
-  --t-line: #20242b;
-  --t-line-strong: #2a2e36;
-  --t-fg: #eeeff2;
-  --t-fg-2: #d3d7dd;
-  --t-fg-3: #b3b9c3;
-  --t-mut: #9da3ad;
-  --t-dim: #737a86;
-  --t-faint: #4a5058;
-  --t-toggle-off: #2a2e36;
+  --t-line-faint: #1a1d24;
+  --t-line-soft: #1f232a;
+  --t-line: #262a32;
+  --t-line-strong: #30353e;
+  --t-fg: #f2f3f5;
+  --t-fg-2: #dde0e6;
+  --t-fg-3: #c4c9d2;
+  --t-mut: #aab0ba;
+  --t-dim: #8a919d;
+  --t-faint: #575d66;
+  --t-toggle-off: #30353e;
   --t-knob: #e7e9ec;
   --t-knob-on: #101114;
   --t-logo-bg: #f2f3f5;
@@ -101,14 +101,14 @@ select option {
 
 /* editorial micro-labels */
 .cap {
-  font-size: 10.5px;
+  font-size: 11px;
   letter-spacing: 3px;
-  color: var(--t-dim);
+  color: var(--t-mut);
   text-transform: uppercase;
 }
 .cap2 {
-  font-size: 9.5px;
+  font-size: 10px;
   letter-spacing: 2px;
-  color: var(--t-dim);
+  color: var(--t-mut);
   text-transform: uppercase;
 }
