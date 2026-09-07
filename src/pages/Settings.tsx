@@ -78,7 +78,7 @@ function Row({
     >
       <div className="min-w-0">
         <div className="text-[12.5px] text-fg-2">{label}</div>
-        {sub ? <div className="mt-0.5 text-[11.5px] text-fg-3 select-text">{sub}</div> : null}
+        {sub ? <div className="mt-0.5 text-[11.5px] font-medium text-warn select-text">{sub}</div> : null}
       </div>
       {right}
     </div>
@@ -95,7 +95,7 @@ function Sect({ title, children }: { title: string; children: React.ReactNode })
 }
 
 const Val = ({ children }: { children: React.ReactNode }) => (
-  <span className="font-sg text-[12.5px] text-fg-3">{children}</span>
+  <span className="font-sg text-[12.5px] font-semibold text-fg">{children}</span>
 );
 
 function Btn({

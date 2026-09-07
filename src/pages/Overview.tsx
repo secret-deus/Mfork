@@ -155,7 +155,7 @@ export default function Overview() {
           {phase === "running" ? dl.value : "0"}
         </span>
         <div className="flex flex-col gap-0.5">
-          <span className="text-[13px] text-mut">{dl.unit}</span>
+          <span className="text-[13px] font-semibold text-accent">{dl.unit}</span>
           <span className="cap2 !text-ok tracking-[2px]">{t("↓ 下载")}</span>
         </div>
       </div>
@@ -163,7 +163,7 @@ export default function Overview() {
         <span className="font-sg text-[38px] leading-none font-light text-fg-3">
           {phase === "running" ? ul.value : "0"}
         </span>
-        <span className="text-[11px] text-dim">{ul.unit}</span>
+        <span className="text-[11px] font-semibold text-accent">{ul.unit}</span>
         <span className="cap2 !text-accent tracking-[2px]">{t("↑ 上传")}</span>
       </div>
 
