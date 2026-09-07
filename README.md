@@ -2,7 +2,17 @@
 
 一個基於 [mihomo](https://github.com/MetaCubeX/mihomo) 內核的桌面代理客戶端。Tauri 2 + React 19 構建，支持 Windows / macOS / Linux（三平台均含系統代理與 TUN 提權服務；Windows 已實機驗證，macOS / Linux 為交叉編譯檢查通過、待實機驗證）。
 
-> 設計文檔見 [docs/DESIGN.md](docs/DESIGN.md)，UI 設計稿源文件在 [design/](design/)。交互式架構圖（含數據包流向動畫、流向篩選、深淺主題）：[docs/diagrams/mfork-architecture.html](docs/diagrams/mfork-architecture.html)（單文件，節點與連線數據在文件內的 `nodes` / `edges` 表中維護）。
+> 設計文檔見 [docs/DESIGN.md](docs/DESIGN.md)，UI 設計稿源文件在 [design/](design/)。
+
+## 架構與數據包流向
+
+[![Mfork 架構與數據包流向](docs/diagrams/mfork-architecture.png)](docs/diagrams/mfork-architecture.html)
+
+上圖為靜態截圖；交互版在 [docs/diagrams/mfork-architecture.html](docs/diagrams/mfork-architecture.html)（單文件、離線可開）：數據包沿鏈路實時流動，可按數據面 / 控制面 / 提權 / 直連篩選，懸停節點查看說明，「追蹤一個數據包」從應用到目標逐步點亮，支持深淺主題。節點與連線在文件內的 `nodes` / `edges` 兩張表中維護，路徑與動畫由其生成。
+
+- **數據面（綠）**：本機應用 → 系統代理（HTTP/SOCKS5）或 TUN 虛擬網卡 → mihomo 內核 → 加密隧道到代理節點 → 目標；命中 `DIRECT` 規則則從內核直連（琥珀色點線）
+- **控制面（藍虛線）**：React 前端經 Tauri IPC 調 Rust 後端；Rust 生成 `config.yaml` 並 spawn 內核；運行時數據由前端直連內核 REST / WebSocket，不經 Rust 轉發；訂閱、內核升級、備份等出站請求經內核代理
+- **提權（紅）**：TUN 需要特權時由提權服務（Windows SCM / macOS launchd / Linux systemd）以 SYSTEM / root 代啟內核，GUI 全程不提權
 
 ## 開發
 

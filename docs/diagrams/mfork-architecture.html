@@ -175,6 +175,12 @@
 
   footer { margin-top: 40px; display: flex; justify-content: space-between; }
 
+  /* ?embed=1: diagram only (used for the README screenshot) */
+  [data-embed] .page { padding: 24px 28px; max-width: none; }
+  [data-embed] header, [data-embed] .journey, [data-embed] .notes, [data-embed] footer { display: none; }
+  [data-embed] .stage { margin-top: 0; border-top: 0; padding-top: 0; }
+  [data-embed] .legend { margin-top: 10px; }
+
   @media (max-width: 900px) {
     .page { padding: 28px 20px 48px; }
     header { flex-direction: column; align-items: flex-start; }
@@ -518,7 +524,9 @@
   }
   $("theme").addEventListener("click", () => setTheme(document.documentElement.dataset.theme !== "light"));
   // ?theme=light|dark presets the theme (default dark)
-  if (new URLSearchParams(location.search).get("theme") === "light") setTheme(true);
+  const qs = new URLSearchParams(location.search);
+  if (qs.get("theme") === "light") setTheme(true);
+  if (qs.has("embed")) document.documentElement.dataset.embed = "1";
 
   // ------------------------------------------------------------ journey (one packet, end to end)
   const journeyPts = [[240,475],[320,475],[320,415],[400,415],[500,415], [600,415],[650,415],[650,475],[700,475],[795,475],[890,475],[1010,475],[1010,395],[1130,395],[1240,395],[1240,430],[1240,580]];
