@@ -57,7 +57,7 @@ CI 在以下 GitHub secrets 存在時自動對 .app/.dmg 簽名並公證，缺�
 - [x] M1 骨架與內核閉環：Tauri 腳手架、內核啟停守護、REST API 連通、概覽頁（實時流量/內存/連接數、模式切換）；全部頁面骨架（代理/連接/規則/日誌接真實 API）；連接監控雙視圖（socket 級逐條連接 + 應用級按進程聚合，`find-process-mode: always`）
 - [x] M2 訂閱系統：訂閱下載（UA clash.meta、subscription-userinfo 流量頭）、增刪改/更新/切換、本地文件導入、按訂閱設定的定時自動更新；覆寫系統（YAML 深合併含 prepend-/append- 語義 + 內嵌 JS 引擎跑 `main(config)` 變換，Monaco 編輯器，保存即熱重載）；配置生成管線（訂閱 → 覆寫鏈 → GUI 托管字段 → config.yaml → PUT /configs 熱重載）
 - [x] M3 代理頁與系統集成：策略組/節點測速、排序/隱藏不可用；系統代理（註冊表 + 繞過列表）、托盤菜單、開機自啟、靜默啟動、單實例
-- [x] M4 監控：連接頁（socket / 應用雙視圖、搜索、斷開）、日誌頁（等級過濾、暫停）、規則頁（規則集 provider 手動更新）；概覽頁節點地球（大陸剪影出血裁切、僅標可連接節點、通路以浮在球面上方的弧線繪製並帶流光；鏈式代理沿 `dialer-proxy` 完整展開每一跳，活動連接的其他通路同時顯示；位置由節點名稱地區提示推斷）；無系統標題欄（Windows 自繪窗口按鈕，macOS 沿用原生紅黃綠燈）
+- [x] M4 監控：連接頁（socket / 應用雙視圖、搜索、TCP/UDP 與活躍過濾、按出站過濾、各列排序、來源/目標端點與展開的五元組詳情、斷開）、日誌頁（等級過濾、暫停）、規則頁（規則集 provider 手動更新）；概覽頁節點地球（大陸剪影出血裁切、僅標可連接節點、通路以浮在球面上方的弧線繪製並帶流光；鏈式代理沿 `dialer-proxy` 完整展開每一跳，活動連接的其他通路同時顯示；位置由節點名稱地區提示推斷）；無系統標題欄（Windows 自繪窗口按鈕，macOS 沿用原生紅黃綠燈）
 - [x] M5 TUN 與提權服務：特權服務代啟內核（Windows SCM 服務 / macOS launchd daemon / Linux systemd 單元，安裝時一次系統授權）、TUN 參數（協議棧/嚴格路由/DNS 劫持）、DNS 接管（fake-ip / 上游）
 - [x] M6 打磨：內核自升級（stable / alpha 通道，經內核代理下載）、GeoData 更新、固定端口 / 局域網 / IPv6、主題（深 / 淺 / 跟隨系統）、多語言（简体 / 繁體 / English，含托盤）、備份（本地 zip + WebDAV 備份/恢復）、應用自動更新（tauri-updater + GitHub Releases）
 

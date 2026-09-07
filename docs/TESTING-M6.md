@@ -61,7 +61,19 @@
 | 停止內核 | 地球停止擺動,節點與弧線消失 |
 | 主題切淺色 | 地球配色跟隨 |
 
-## 6. 應用自動更新(tauri-updater)
+## 6. 連接頁過濾 / 排序 / 五元組
+
+| 操作 | 預期 |
+|---|---|
+| 頂部切 TCP / UDP 芯片 | 表格只剩該協議;「全部」恢復 |
+| 勾「僅活躍」 | 最近有流量的連接保留,空閒連接隱藏 |
+| 出站下拉選某節點 | 只顯示出口為該節點的連接;「全部出站」恢復 |
+| 點表頭「↓ 速率」「↑ 速率」「下載」「上傳」「開始」 | 按該列排序,再點反向;箭頭指示當前列 |
+| 點某一行 | 展開詳情:五元組(協議 源 IP:端口 → 目標 IP:端口)、入站、主機、規則、完整鏈路、進程、開始時間、連接 ID;再點收起 |
+| 目標為域名且未解析 | 目標列顯示「遠端解析」而非空白 |
+| 過濾後無結果 | 顯示「沒有符合篩選條件的連接」 |
+
+## 7. 應用自動更新(tauri-updater)
 
 前置:GitHub 倉庫 Secrets 設好 `TAURI_SIGNING_PRIVATE_KEY`(`~/.tauri/mfork.key` 內容),推一個 `v0.1.1` tag 讓 CI 產出帶 `latest.json` 的 Release 並發佈(CI 建的是 draft,需手動 publish)。
 
@@ -72,7 +84,7 @@
 | 無新版本 | 「已是最新版本」 |
 | endpoint 不可達 | 顯示「檢查更新失敗」 |
 
-## 7. macOS / Linux 提權服務（待實機驗證）
+## 8. macOS / Linux 提權服務（待實機驗證）
 
 前置：在該平台 `node scripts/fetch-core.mjs && node scripts/build-service.mjs && pnpm tauri build`，安裝產出的 .dmg / .AppImage / .deb。
 
