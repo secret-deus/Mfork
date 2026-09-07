@@ -77,8 +77,8 @@ function Row({
       className={`flex items-center justify-between gap-4 py-3.5 ${last ? "" : "border-b border-line-soft"}`}
     >
       <div className="min-w-0">
-        <div className="text-[12.5px] text-fg-2">{label}</div>
-        {sub ? <div className="mt-0.5 text-[11.5px] text-fg-3 select-text">{sub}</div> : null}
+        <div className="text-[13.5px] text-fg-2">{label}</div>
+        {sub ? <div className="mt-0.5 text-[12.5px] text-fg-3 select-text">{sub}</div> : null}
       </div>
       {right}
     </div>
@@ -88,14 +88,14 @@ function Row({
 function Sect({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="border-b border-line-strong pb-2.5 text-[15px] font-semibold">{title}</div>
+      <div className="border-b border-line-strong pb-2.5 text-[16px] font-semibold">{title}</div>
       {children}
     </div>
   );
 }
 
 const Val = ({ children }: { children: React.ReactNode }) => (
-  <span className="font-sg text-[12.5px] font-semibold text-fg">{children}</span>
+  <span className="font-sg text-[13.5px] font-semibold text-fg">{children}</span>
 );
 
 function Btn({
@@ -115,7 +115,7 @@ function Btn({
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`text-xs disabled:opacity-40 ${
+      className={`text-[13px] disabled:opacity-40 ${
         accent
           ? "text-accent hover:text-fg"
           : danger
@@ -144,7 +144,7 @@ function Sel({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       disabled={disabled}
-      className="border-b border-line-strong bg-transparent pb-0.5 text-right font-sg text-[12px] text-fg-3 outline-none focus:border-accent disabled:opacity-40"
+      className="border-b border-line-strong bg-transparent pb-0.5 text-right font-sg text-[13px] text-fg-3 outline-none focus:border-accent disabled:opacity-40"
     >
       {options.map((o) => (
         <option key={o.value} value={o.value}>
@@ -156,7 +156,7 @@ function Sel({
 }
 
 const inputCls =
-  "border-b border-line-strong bg-transparent pb-0.5 text-right font-sg text-[11.5px] text-fg-3 outline-none focus:border-accent disabled:opacity-40";
+  "border-b border-line-strong bg-transparent pb-0.5 text-right font-sg text-[12.5px] text-fg-3 outline-none focus:border-accent disabled:opacity-40";
 
 /** Text field that commits on blur / Enter. */
 function Field({
@@ -891,8 +891,8 @@ function BackupSection() {
                 }`}
               >
                 <div className="min-w-0">
-                  <div className="truncate font-sg text-[11.5px] text-fg-3">{b.name}</div>
-                  <div className="text-[11px] text-mut">
+                  <div className="truncate font-sg text-[12.5px] text-fg-3">{b.name}</div>
+                  <div className="text-[12px] text-mut">
                     {formatBytes(b.size)}
                     {b.modified ? ` · ${b.modified}` : ""}
                   </div>

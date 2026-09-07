@@ -77,24 +77,24 @@ export default function Overrides() {
           <div className="flex items-baseline gap-4">
             <button
               onClick={() => setEditing(null)}
-              className="text-xs text-mut hover:text-fg"
+              className="text-[13px] text-mut hover:text-fg"
             >
               {t("← 返回")}
             </button>
-            <span className="text-[15px] font-semibold">{editing.name}</span>
+            <span className="text-[16px] font-semibold">{editing.name}</span>
             <span className="cap2">{editing.kind}</span>
             {dirty ? <span className="cap2 !text-warn">{t("未保存")}</span> : null}
           </div>
           <button
             onClick={() => void save()}
             disabled={!dirty}
-            className="text-xs font-semibold tracking-[1px] text-accent hover:text-fg disabled:opacity-40"
+            className="text-[13px] font-semibold tracking-[1px] text-accent hover:text-fg disabled:opacity-40"
           >
             {t("保存并应用")}
           </button>
         </div>
         {error ? (
-          <div className="mt-2 px-14 text-xs text-err select-text">{error}</div>
+          <div className="mt-2 px-14 text-[13px] text-err select-text">{error}</div>
         ) : null}
         <div className="mt-4 min-h-0 flex-1 border-t border-line">
           <CodeEditor
@@ -116,7 +116,7 @@ export default function Overrides() {
         <div className="cap">{t("Mfork · 覆写 Overrides")}</div>
         <button
           onClick={() => setCreating(!creating)}
-          className="text-xs text-accent hover:text-fg"
+          className="text-[13px] text-accent hover:text-fg"
         >
           {t("新建覆写")}
         </button>
@@ -129,14 +129,14 @@ export default function Overrides() {
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             placeholder={t("覆写名称")}
-            className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-dim"
+            className="flex-1 bg-transparent text-[14px] outline-none placeholder:text-dim"
           />
           <div className="flex gap-3">
             {(["yaml", "js"] as const).map((k) => (
               <button
                 key={k}
                 onClick={() => setNewKind(k)}
-                className={`border-b-2 pb-0.5 text-xs uppercase tracking-[1px] ${
+                className={`border-b-2 pb-0.5 text-[13px] uppercase tracking-[1px] ${
                   newKind === k ? "border-accent text-fg" : "border-transparent text-dim"
                 }`}
               >
@@ -153,14 +153,14 @@ export default function Overrides() {
                 await openEditor(meta);
               }, false)
             }
-            className="text-xs font-semibold text-accent hover:text-fg"
+            className="text-[13px] font-semibold text-accent hover:text-fg"
           >
             {t("创建")}
           </button>
         </div>
       ) : null}
 
-      {error ? <div className="mt-3 text-xs text-err select-text">{error}</div> : null}
+      {error ? <div className="mt-3 text-[13px] text-err select-text">{error}</div> : null}
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {list.length === 0 ? (
@@ -190,7 +190,7 @@ export default function Overrides() {
                 </button>
                 <button
                   onClick={() => void openEditor(o)}
-                  className={`text-[14px] font-semibold ${o.enabled ? "" : "text-dim"} hover:text-accent`}
+                  className={`text-[15px] font-semibold ${o.enabled ? "" : "text-dim"} hover:text-accent`}
                 >
                   {o.name}
                 </button>
@@ -215,7 +215,7 @@ export default function Overrides() {
                 </button>
                 <button
                   onClick={() => void openEditor(o)}
-                  className="text-xs text-mut hover:text-fg"
+                  className="text-[13px] text-mut hover:text-fg"
                 >
                   {t("编辑")}
                 </button>
@@ -225,7 +225,7 @@ export default function Overrides() {
                       void act(() => overrideDelete(o.id));
                     }
                   }}
-                  className="text-xs text-dim hover:text-err"
+                  className="text-[13px] text-dim hover:text-err"
                 >
                   {t("删除")}
                 </button>

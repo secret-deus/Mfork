@@ -32,9 +32,9 @@ function rate(n: number): string {
 }
 
 const thBase =
-  "text-left whitespace-nowrap py-2.5 pr-3 text-[9.5px] font-semibold uppercase tracking-[2px] select-none";
+  "text-left whitespace-nowrap py-2.5 pr-3 text-[10.5px] font-semibold uppercase tracking-[2px] select-none";
 const tdCls =
-  "whitespace-nowrap overflow-hidden text-ellipsis py-2.5 pr-3 text-xs border-t border-line-soft";
+  "whitespace-nowrap overflow-hidden text-ellipsis py-2.5 pr-3 text-[13px] border-t border-line-soft";
 
 function Th({
   label,
@@ -157,7 +157,7 @@ export default function Connections() {
   };
 
   const chip = (on: boolean) =>
-    `text-xs transition-colors ${on ? "text-fg font-semibold" : "text-mut hover:text-fg"}`;
+    `text-[13px] transition-colors ${on ? "text-fg font-semibold" : "text-mut hover:text-fg"}`;
 
   return (
     <div className="flex h-full min-w-0 flex-col px-14 pb-6 pt-13">
@@ -165,26 +165,26 @@ export default function Connections() {
         <div className="flex items-baseline gap-5">
           <div className="cap">{t("Mfork · 连接 Connections")}</div>
           <span className="cap2">
-            {t("活动")} <span className="font-sg text-[11px] text-fg">{all.length}</span>
+            {t("活动")} <span className="font-sg text-[12px] text-fg">{all.length}</span>
           </span>
           <span className="cap2">
-            {t("下载")} <span className="font-sg text-[11px] text-fg">{formatBytes(snap?.downloadTotal ?? 0)}</span>
+            {t("下载")} <span className="font-sg text-[12px] text-fg">{formatBytes(snap?.downloadTotal ?? 0)}</span>
           </span>
           <span className="cap2">
-            {t("上传")} <span className="font-sg text-[11px] text-fg">{formatBytes(snap?.uploadTotal ?? 0)}</span>
+            {t("上传")} <span className="font-sg text-[12px] text-fg">{formatBytes(snap?.uploadTotal ?? 0)}</span>
           </span>
         </div>
         <div className="flex items-center gap-6">
           <div className="flex gap-4">
             <button
               onClick={() => setView("socket")}
-              className={`border-b-2 pb-1 text-xs ${view === "socket" ? "border-accent text-fg" : "border-transparent text-mut hover:text-fg"}`}
+              className={`border-b-2 pb-1 text-[13px] ${view === "socket" ? "border-accent text-fg" : "border-transparent text-mut hover:text-fg"}`}
             >
               {t("连接视图")}
             </button>
             <button
               onClick={() => setView("app")}
-              className={`border-b-2 pb-1 text-xs ${view === "app" ? "border-accent text-fg" : "border-transparent text-mut hover:text-fg"}`}
+              className={`border-b-2 pb-1 text-[13px] ${view === "app" ? "border-accent text-fg" : "border-transparent text-mut hover:text-fg"}`}
             >
               {t("应用视图")}
             </button>
@@ -195,11 +195,11 @@ export default function Connections() {
               if (!paused) setFrozen(snapshot);
               setPaused(!paused);
             }}
-            className={`text-xs ${paused ? "text-warn" : "text-mut hover:text-fg"}`}
+            className={`text-[13px] ${paused ? "text-warn" : "text-mut hover:text-fg"}`}
           >
             {paused ? t("继续") : t("暂停")}
           </button>
-          <button onClick={closeAll} className="text-xs text-err/80 hover:text-err">
+          <button onClick={closeAll} className="text-[13px] text-err/80 hover:text-err">
             {t("关闭全部")}
           </button>
         </div>
@@ -214,7 +214,7 @@ export default function Connections() {
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder={t("搜索主机 / IP / 端口 / 进程 / 规则 / 节点")}
-          className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-dim"
+          className="flex-1 bg-transparent text-[14px] outline-none placeholder:text-dim"
         />
         <div className="flex items-center gap-3">
           {(["all", "tcp", "udp"] as Net[]).map((n) => (
@@ -231,7 +231,7 @@ export default function Connections() {
         <select
           value={chain}
           onChange={(e) => setChain(e.target.value)}
-          className="bg-transparent text-xs text-mut outline-none hover:text-fg"
+          className="bg-transparent text-[13px] text-mut outline-none hover:text-fg"
         >
           <option value="all">{t("全部出站")}</option>
           {chains.map((c) => (
@@ -276,18 +276,18 @@ export default function Connections() {
                       onClick={() => setOpen(isOpen ? null : c.id)}
                     >
                       <td className={`${tdCls} text-fg`}>{hostOf(c)}</td>
-                      <td className={`${tdCls} font-sg text-[11px] text-fg-3`}>{endpoint(c.metadata.sourceIP, c.metadata.sourcePort)}</td>
-                      <td className={`${tdCls} font-sg text-[11px] ${c.metadata.destinationIP ? "text-fg-3" : "text-dim"}`}>
+                      <td className={`${tdCls} font-sg text-[12px] text-fg-3`}>{endpoint(c.metadata.sourceIP, c.metadata.sourcePort)}</td>
+                      <td className={`${tdCls} font-sg text-[12px] ${c.metadata.destinationIP ? "text-fg-3" : "text-dim"}`}>
                         {c.metadata.destinationIP
                           ? endpoint(c.metadata.destinationIP, c.metadata.destinationPort)
                           : t("远端解析")}
                       </td>
                       <td className={`${tdCls} text-fg-3`}>{procName(c)}</td>
-                      <td className={`${tdCls} text-[10px] font-semibold uppercase tracking-[1px] text-label`}>
+                      <td className={`${tdCls} text-[11px] font-semibold uppercase tracking-[1px] text-label`}>
                         {c.metadata.network}
                       </td>
-                      <td className={`${tdCls} text-[11px] text-fg-3`}>{c.rule}{c.rulePayload ? ` · ${c.rulePayload}` : ""}</td>
-                      <td className={`${tdCls} text-[11px] text-fg-3`}>{[...c.chains].reverse().join(" » ")}</td>
+                      <td className={`${tdCls} text-[12px] text-fg-3`}>{c.rule}{c.rulePayload ? ` · ${c.rulePayload}` : ""}</td>
+                      <td className={`${tdCls} text-[12px] text-fg-3`}>{[...c.chains].reverse().join(" » ")}</td>
                       <td className={`${tdCls} font-sg ${c.downSpeed > 0 ? "text-ok" : "text-dim"}`}>{rate(c.downSpeed)}</td>
                       <td className={`${tdCls} font-sg ${c.upSpeed > 0 ? "text-accent" : "text-dim"}`}>{rate(c.upSpeed)}</td>
                       <td className={`${tdCls} font-sg text-fg-3`}>{formatBytes(c.download)}</td>
@@ -367,7 +367,7 @@ function Detail({ label, value, wide }: { label: string; value: string; wide?: b
   return (
     <div className={wide ? "col-span-2" : ""}>
       <div className="cap2">{label}</div>
-      <div className="mt-1 break-all font-sg text-[12px] text-fg-2">{value}</div>
+      <div className="mt-1 break-all font-sg text-[13px] text-fg-2">{value}</div>
     </div>
   );
 }

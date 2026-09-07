@@ -112,7 +112,7 @@ export default function Profiles() {
             })
           }
           disabled={busy !== null}
-          className="text-xs text-mut hover:text-fg disabled:opacity-40"
+          className="text-[13px] text-mut hover:text-fg disabled:opacity-40"
         >
           {t("打开本地文件")}
         </button>
@@ -130,19 +130,19 @@ export default function Profiles() {
             if (e.key === "Enter" && url.trim() && busy === null) void doImport();
           }}
           placeholder={t("粘贴订阅链接（https://...）")}
-          className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-dim"
+          className="flex-1 bg-transparent text-[14px] outline-none placeholder:text-dim"
         />
         <button
           onClick={() => void doImport()}
           disabled={!url.trim() || busy !== null}
-          className="text-[12.5px] font-semibold tracking-[1px] text-accent hover:text-fg disabled:opacity-40"
+          className="text-[13.5px] font-semibold tracking-[1px] text-accent hover:text-fg disabled:opacity-40"
         >
           {busy === "import" ? t("下载中…") : t("导入")}
         </button>
       </div>
 
       {error ? (
-        <div className="mt-3 text-xs text-err select-text">{error}</div>
+        <div className="mt-3 text-[13px] text-err select-text">{error}</div>
       ) : null}
 
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -188,7 +188,7 @@ export default function Profiles() {
                             onClick={() =>
                               void run(p.id, async () => profileSetInterval(p.id, it.v))
                             }
-                            className={`text-[10px] tracking-[1px] ${
+                            className={`text-[11px] tracking-[1px] ${
                               p.interval_hours === it.v
                                 ? "text-accent"
                                 : "text-dim hover:text-mut"
@@ -203,7 +203,7 @@ export default function Profiles() {
                       <button
                         onClick={() => void doUpdate(p)}
                         disabled={busy !== null}
-                        className="text-xs text-mut hover:text-fg disabled:opacity-40"
+                        className="text-[13px] text-mut hover:text-fg disabled:opacity-40"
                       >
                         {busy === p.id ? t("处理中…") : t("更新")}
                       </button>
@@ -211,7 +211,7 @@ export default function Profiles() {
                     <button
                       onClick={() => doDelete(p)}
                       disabled={busy !== null}
-                      className="text-xs text-dim hover:text-err disabled:opacity-40"
+                      className="text-[13px] text-dim hover:text-err disabled:opacity-40"
                     >
                       {t("删除")}
                     </button>
@@ -223,7 +223,7 @@ export default function Profiles() {
                       <span className="font-sg text-[26px] font-normal">
                         {formatBytes(used)}
                       </span>
-                      <span className="font-sg text-[13px] text-dim">
+                      <span className="font-sg text-[14px] text-dim">
                         / {formatBytes(p.sub.total)}
                       </span>
                       <span className="flex-1" />

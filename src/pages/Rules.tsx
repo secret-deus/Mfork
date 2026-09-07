@@ -56,7 +56,7 @@ export default function Rules() {
         <div className="flex items-baseline gap-5">
           <div className="cap">{t("Mfork · 规则 Rules")}</div>
           <span className="cap2">
-            {t("共")} <span className="font-sg text-[11px] text-fg-2">{rules.length}</span> {t("条")}
+            {t("共")} <span className="font-sg text-[12px] text-fg-2">{rules.length}</span> {t("条")}
           </span>
         </div>
       </div>
@@ -65,7 +65,7 @@ export default function Rules() {
         <div className="mt-5 flex flex-wrap gap-x-8 gap-y-2 border-b border-line pb-4">
           {providers.map((p) => (
             <div key={p.name} className="flex items-center gap-3">
-              <span className="text-xs text-fg-3">{p.name}</span>
+              <span className="text-[13px] text-fg-3">{p.name}</span>
               <span className="cap2">{p.behavior}</span>
               <span className="cap2">{t("{n} rules", { n: p.ruleCount })}</span>
               {p.updatedAt ? (
@@ -76,7 +76,7 @@ export default function Rules() {
               <button
                 onClick={() => void updateProvider(p.name)}
                 disabled={updating === p.name}
-                className="text-[11px] text-accent hover:text-fg disabled:opacity-50"
+                className="text-[12px] text-accent hover:text-fg disabled:opacity-50"
               >
                 {updating === p.name ? t("更新中…") : t("更新")}
               </button>
@@ -94,7 +94,7 @@ export default function Rules() {
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder={t("搜索规则 / 类型 / 目标")}
-          className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-dim"
+          className="flex-1 bg-transparent text-[14px] outline-none placeholder:text-dim"
         />
       </div>
 
@@ -107,8 +107,8 @@ export default function Rules() {
           shown.map((r, i) => (
             <div key={i} className="flex items-center gap-4 border-b border-line-faint py-2.5">
               <span className="cap2 w-36 shrink-0">{r.type}</span>
-              <span className="min-w-0 flex-1 truncate text-xs text-fg-3">{r.payload || "—"}</span>
-              <span className={`shrink-0 text-xs ${r.proxy === "DIRECT" ? "text-ok" : r.proxy === "REJECT" ? "text-err" : "text-mut"}`}>
+              <span className="min-w-0 flex-1 truncate text-[13px] text-fg-3">{r.payload || "—"}</span>
+              <span className={`shrink-0 text-[13px] ${r.proxy === "DIRECT" ? "text-ok" : r.proxy === "REJECT" ? "text-err" : "text-mut"}`}>
                 {r.proxy}
               </span>
             </div>

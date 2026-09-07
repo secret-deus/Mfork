@@ -40,7 +40,7 @@ export default function Logs() {
             <button
               key={lv}
               onClick={() => setLevel(lv)}
-              className={`border-b-2 pb-1 text-xs uppercase tracking-[1px] ${
+              className={`border-b-2 pb-1 text-[13px] uppercase tracking-[1px] ${
                 level === lv ? "border-accent text-fg" : "border-transparent text-dim hover:text-mut"
               }`}
             >
@@ -50,11 +50,11 @@ export default function Logs() {
           <div className="h-4 w-px bg-line" />
           <button
             onClick={() => setLogsPaused(!logsPaused)}
-            className={`text-xs ${logsPaused ? "text-warn" : "text-mut hover:text-fg"}`}
+            className={`text-[13px] ${logsPaused ? "text-warn" : "text-mut hover:text-fg"}`}
           >
             {logsPaused ? t("继续") : t("暂停")}
           </button>
-          <button onClick={clearLogs} className="text-xs text-mut hover:text-fg">
+          <button onClick={clearLogs} className="text-[13px] text-mut hover:text-fg">
             {t("清空")}
           </button>
         </div>
@@ -74,11 +74,11 @@ export default function Logs() {
           </div>
         ) : (
           shown.map((l) => (
-            <div key={l.seq} className="flex gap-3 py-0.5 font-sg text-[11.5px] leading-relaxed">
+            <div key={l.seq} className="flex gap-3 py-0.5 font-sg text-[12.5px] leading-relaxed">
               <span className="shrink-0 text-dim">
                 {new Date(l.at).toLocaleTimeString("en-GB")}
               </span>
-              <span className={`w-14 shrink-0 uppercase tracking-[1px] text-[10px] pt-0.5 ${COLOR[l.type] ?? "text-mut"}`}>
+              <span className={`w-14 shrink-0 uppercase tracking-[1px] text-[11px] pt-0.5 ${COLOR[l.type] ?? "text-mut"}`}>
                 {l.type}
               </span>
               <span className="break-all text-fg-3">{l.payload}</span>

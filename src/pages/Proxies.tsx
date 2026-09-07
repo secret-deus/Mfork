@@ -112,7 +112,7 @@ export default function Proxies() {
               <button
                 key={s.key}
                 onClick={() => setSortBy(s.key)}
-                className={`text-xs transition-colors ${
+                className={`text-[13px] transition-colors ${
                   sortBy === s.key ? "text-fg" : "text-dim hover:text-mut"
                 }`}
               >
@@ -123,7 +123,7 @@ export default function Proxies() {
           <div className="h-3.5 w-px bg-line" />
           <button
             onClick={() => setHideUnavail((v) => !v)}
-            className={`text-xs transition-colors ${
+            className={`text-[13px] transition-colors ${
               hideUnavail ? "text-fg" : "text-dim hover:text-mut"
             }`}
           >
@@ -132,7 +132,7 @@ export default function Proxies() {
           <div className="h-3.5 w-px bg-line" />
           <button
             onClick={() => void refresh()}
-            className="text-xs text-mut hover:text-fg"
+            className="text-[13px] text-mut hover:text-fg"
             disabled={phase !== "running"}
           >
             {t("刷新")}
@@ -160,18 +160,18 @@ export default function Proxies() {
                   onClick={() => setExpanded(open ? null : g.name)}
                 >
                   <div className="flex items-baseline gap-3.5">
-                    <span className="text-[15px] font-semibold text-fg-2">{g.name}</span>
+                    <span className="text-[16px] font-semibold text-fg-2">{g.name}</span>
                     <span className="cap2">{g.type}</span>
                     <span className="cap2">{t("{n} nodes", { n: g.all.length })}</span>
                   </div>
                   <div className="flex items-center gap-4">
-                    <span className="text-xs text-mut">{g.now}</span>
+                    <span className="text-[13px] text-mut">{g.now}</span>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         void testGroup(g.name);
                       }}
-                      className="text-xs text-accent hover:text-fg disabled:opacity-50"
+                      className="text-[13px] text-accent hover:text-fg disabled:opacity-50"
                       disabled={testing === g.name}
                     >
                       {testing === g.name ? t("测速中…") : t("测速")}
@@ -201,12 +201,12 @@ export default function Proxies() {
                             {selected ? (
                               <span className="block h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
                             ) : null}
-                            <span className={`truncate text-[13px] ${selected ? "text-fg" : "text-fg-3"}`}>
+                            <span className={`truncate text-[14px] ${selected ? "text-fg" : "text-fg-3"}`}>
                               {name}
                             </span>
                             <span className="cap2 shrink-0">{n?.type ?? ""}</span>
                           </span>
-                          <span className={`font-sg shrink-0 text-sm ${delayColor(d)}`}>
+                          <span className={`font-sg shrink-0 text-[15px] ${delayColor(d)}`}>
                             {d && d > 0 ? d : "—"}
                           </span>
                         </button>

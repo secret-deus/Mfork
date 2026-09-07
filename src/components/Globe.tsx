@@ -1,7 +1,8 @@
 // Overview globe: orthographic land silhouettes on a canvas, marking only
 // reachable proxy nodes, with routes drawn as arcs lifted above the surface
 // from the local machine through every hop (relay chains included) to the
-// exit node. Sways slowly around the local machine; theme-aware.
+// exit node. Sways slowly around the local machine, can be dragged to any
+// angle and drifts back home after a few seconds; theme-aware.
 import { useEffect, useRef } from "react";
 import {
   geoDistance,
@@ -99,17 +100,65 @@ export default function Globe({ self, nodes, routes, active }: GlobeProps) {
     let last = performance.now();
     let raf = 0;
 
+    // drag: an offset on top of the home rotation, with inertia on release
+    // and a slow return home once the user lets go
+    const drag = { on: false, x: 0, y: 0, lon: 0, lat: 0, vLon: 0, vLat: 0, released: 0 };
+    const onDown = (e: PointerEvent) => {
+      drag.on = true;
+      drag.x = e.clientX;
+      drag.y = e.clientY;
+      drag.vLon = drag.vLat = 0;
+      canvas.setPointerCapture(e.pointerId);
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!drag.on) return;
+      const k = 90 / Math.max(120, Math.min(w, h)); // degrees per pixel, ~quarter turn across the disc
+      const dLon = (e.clientX - drag.x) * k;
+      const dLat = (e.clientY - drag.y) * k;
+      drag.x = e.clientX;
+      drag.y = e.clientY;
+      drag.lon += dLon;
+      drag.lat = Math.max(-60, Math.min(60, drag.lat - dLat));
+      drag.vLon = dLon * 0.6;
+      drag.vLat = -dLat * 0.6;
+    };
+    const onUp = (e: PointerEvent) => {
+      if (!drag.on) return;
+      drag.on = false;
+      drag.released = performance.now();
+      canvas.releasePointerCapture(e.pointerId);
+    };
+    canvas.addEventListener("pointerdown", onDown);
+    canvas.addEventListener("pointermove", onMove);
+    canvas.addEventListener("pointerup", onUp);
+    canvas.addEventListener("pointercancel", onUp);
+
     const frame = (now: number) => {
       const dt = Math.min(100, now - last);
       last = now;
       const p = props.current;
-      if (p.active) phase += dt * 0.00012; // one full sway ≈ 50 s
+      if (p.active && !drag.on) phase += dt * 0.00012; // one full sway ≈ 50 s
       const sway = Math.sin(phase) * 14;
+      if (!drag.on) {
+        // inertia, then ease back to the home view after a pause
+        drag.lon += drag.vLon;
+        drag.lat = Math.max(-60, Math.min(60, drag.lat + drag.vLat));
+        drag.vLon *= 0.86;
+        drag.vLat *= 0.86;
+        if (now - drag.released > 2500) {
+          const ease = Math.pow(0.985, dt / 16);
+          drag.lon *= ease;
+          drag.lat *= ease;
+          if (Math.abs(drag.lon) < 0.02) drag.lon = 0;
+          if (Math.abs(drag.lat) < 0.02) drag.lat = 0;
+        }
+      }
       const radius = Math.min(w, h) / 2 - 1;
       const cx = w / 2;
       const cy = h / 2;
-      projection.translate([cx, cy]).scale(radius).rotate([-p.self[0] - 25 + sway, -22]);
-      const center: LonLat = [p.self[0] + 25 - sway, 22];
+      projection.translate([cx, cy]).scale(radius).rotate([-p.self[0] - 25 + sway + drag.lon, -22 + drag.lat]);
+      const inv = projection.invert?.([cx, cy]);
+      const center: LonLat = inv ? [inv[0], inv[1]] : [p.self[0] + 25 - sway, 22];
       const visible = (pt: LonLat) => geoDistance(pt, center) < Math.PI / 2 - 0.02;
       const rotate = geoRotation(projection.rotate());
 
@@ -118,7 +167,7 @@ export default function Globe({ self, nodes, routes, active }: GlobeProps) {
       const arc = (a: LonLat, b: LonLat, n = 48): ArcPt[] => {
         const interp = geoInterpolate(a, b);
         const dist = geoDistance(a, b);
-        const lift = 0.06 + 0.28 * (dist / Math.PI);
+        const lift = 0.08 + 0.34 * (dist / Math.PI);
         const out: ArcPt[] = [];
         for (let i = 0; i <= n; i++) {
           const t = i / n;
@@ -200,22 +249,28 @@ export default function Globe({ self, nodes, routes, active }: GlobeProps) {
         p.routes.forEach((r, ri) => {
           if (r.hops.length === 0) return;
           const color = r.tone === "ok" ? palette.ok : palette.accent;
-          const width = Math.min(2.4, 1 + Math.log2(1 + r.conns) * 0.35);
+          const width = Math.min(3.2, 1.7 + Math.log2(1 + r.conns) * 0.45);
           const legs: ArcPt[][] = [];
           let from = p.self;
           for (const hp of r.hops) {
             legs.push(arc(from, hp.pos));
             from = hp.pos;
           }
-          for (const leg of legs) strokePts(leg, color, width, 0.55);
+          // soft glow under the line, then the line itself
+          for (const leg of legs) strokePts(leg, color, width * 3.2, 0.14);
+          for (const leg of legs) strokePts(leg, color, width, 0.9);
 
-          // travelling segment across the whole route
+          // travelling bright segment across the whole route
           const all = legs.flat();
           const speed = 1800 + r.hops.length * 500;
           const t = ((now + ri * 530) / speed) % 1;
           const head = Math.floor(t * (all.length - 1));
-          const tail = Math.max(0, head - Math.round(all.length * 0.12));
-          strokePts(all.slice(tail, head + 1), color, width + 0.7, 1);
+          const tail = Math.max(0, head - Math.round(all.length * 0.14));
+          ctx.save();
+          ctx.shadowColor = color;
+          ctx.shadowBlur = 10;
+          strokePts(all.slice(tail, head + 1), "#ffffff", width + 0.6, 0.95);
+          ctx.restore();
 
           // hop markers: intermediate hops hollow, exit filled + pulse
           r.hops.forEach((hp, hi) => {
@@ -271,10 +326,14 @@ export default function Globe({ self, nodes, routes, active }: GlobeProps) {
       cancelAnimationFrame(raf);
       ro.disconnect();
       unTheme();
+      canvas.removeEventListener("pointerdown", onDown);
+      canvas.removeEventListener("pointermove", onMove);
+      canvas.removeEventListener("pointerup", onUp);
+      canvas.removeEventListener("pointercancel", onUp);
     };
   }, []);
 
-  return <canvas ref={ref} className="block h-full w-full" />;
+  return <canvas ref={ref} className="block h-full w-full cursor-grab touch-none active:cursor-grabbing" />;
 }
 
 function readPalette() {

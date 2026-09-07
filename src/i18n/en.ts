@@ -220,6 +220,7 @@ const en: Record<string, string> = {
   "卸载": "Uninstall",
   "等待授权…": "Waiting for approval…",
   "安装服务": "Install service",
+  "关闭 TUN": "Disable TUN",
   "启用 TUN": "Enable TUN",
   "虚拟网卡接管全局流量；与其他代理客户端的 TUN/系统代理互斥": "A virtual adapter captures all traffic; conflicts with other clients' TUN / system proxy",
   "需先安装系统服务": "Install the system service first",

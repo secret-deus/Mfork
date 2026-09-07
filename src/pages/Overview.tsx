@@ -1,6 +1,6 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useApp } from "../store";
-import { apiGet, formatBytes, formatRate } from "../lib/core";
+import { apiGet, formatBytes, formatRate, serviceStatus, type AppSettings, type ServiceStatus } from "../lib/core";
 import { useT } from "../i18n";
 import Globe, { GlobeNode, GlobeRoute } from "../components/Globe";
 import { locateNode, locateNodeDetail, locateSelfDetail } from "../lib/geo";
@@ -196,6 +196,8 @@ export default function Overview() {
     setMode,
     settings,
     setSystemProxy,
+    updateSettings,
+    restart,
   } = useApp();
 
   const dl = formatRate(down);
@@ -211,17 +213,10 @@ export default function Overview() {
   // as a second route.
   const live = useMemo(() => {
     const m = new Map<string, { hops: Hop[]; conns: number }>();
-    let direct = 0;
-    let total = 0;
     for (const c of snapshot?.connections ?? []) {
       const exit = c.chains[0];
       if (!exit) continue;
       if (!c.rule && globe.innerLegs.has(exit)) continue;
-      total += 1;
-      if (exit.toUpperCase() === "DIRECT") {
-        direct += 1;
-        continue;
-      }
       if (BUILTIN.has(exit.toUpperCase())) continue;
       let hops = globe.chains.get(exit);
       if (!hops) {
@@ -237,7 +232,7 @@ export default function Overview() {
     const routes = [...m.entries()]
       .map(([key, v]) => ({ key, ...v }))
       .sort((a, b) => b.conns - a.conns);
-    return { routes, direct, total };
+    return { routes };
   }, [snapshot, globe.chains, globe.innerLegs]);
 
   const currentKey = globe.currentHops.map((h) => h.name).join(" » ");
@@ -250,19 +245,24 @@ export default function Overview() {
     return out;
   }, [globe.currentHops, currentKey, currentLiveRoute, live.routes]);
 
-  const entry = settings?.tun.enable
-    ? "TUN"
-    : settings?.system_proxy
-      ? t("系统代理")
-      : t("混合端口 {port}", { port: api?.mixed_port ?? "—" });
+  // TUN needs the elevated service; the switch mirrors the one in Settings
+  const [svc, setSvc] = useState<ServiceStatus | null>(null);
+  useEffect(() => {
+    void serviceStatus().then(setSvc, () => setSvc(null));
+  }, [phase]);
+  const tun = settings?.tun;
+  const tunOn = tun?.enable ?? false;
+  const tunAvailable = !!tun && (svc?.reachable || tunOn);
+  const toggleTun = async () => {
+    if (!tun) return;
+    await updateSettings({ tun: { ...tun, enable: !tunOn } } as Partial<AppSettings>);
+    if (phase === "running") await restart();
+  };
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden px-14 pb-10 pt-13">
-      {/* globe bleeds off the right edge; content stays on top */}
-      <div
-        className="pointer-events-none absolute top-1/2 -right-[14vh] h-[96vh] w-[96vh] -translate-y-1/2 select-none"
-        aria-hidden
-      >
+      {/* globe on the right; drag to rotate, it drifts back home when released */}
+      <div className="absolute top-1/2 right-[6vh] h-[72vh] w-[72vh] -translate-y-1/2 select-none">
         <Globe self={self.pos} nodes={globe.nodes} routes={routes} active={phase === "running"} />
       </div>
       <div className="relative z-10 flex items-center justify-between">
@@ -277,7 +277,7 @@ export default function Overview() {
           {phase === "running" ? dl.value : "0"}
         </span>
         <div className="flex flex-col gap-0.5">
-          <span className="text-[13px] font-semibold text-accent">{dl.unit}</span>
+          <span className="text-[14px] font-semibold text-accent">{dl.unit}</span>
           <span className="cap2 !text-ok tracking-[2px]">{t("↓ 下载")}</span>
         </div>
       </div>
@@ -285,7 +285,7 @@ export default function Overview() {
         <span className="font-sg text-[38px] leading-none font-light text-fg-3">
           {phase === "running" ? ul.value : "0"}
         </span>
-        <span className="text-[11px] font-semibold text-accent">{ul.unit}</span>
+        <span className="text-[12px] font-semibold text-accent">{ul.unit}</span>
         <span className="cap2 !text-accent tracking-[2px]">{t("↑ 上传")}</span>
       </div>
 
@@ -293,21 +293,21 @@ export default function Overview() {
       <div className="relative z-10 flex w-[470px]">
         <div className="flex flex-1 flex-col gap-1.5 py-4">
           <span className="cap">{t("活动连接")}</span>
-          <span className="font-sg text-2xl">
+          <span className="font-sg text-[26px]">
             {phase === "running" ? connections : "—"}
           </span>
         </div>
         <div className="w-px bg-line" />
         <div className="flex flex-1 flex-col gap-1.5 py-4 pl-6">
           <span className="cap">{t("内核内存")}</span>
-          <span className="font-sg text-2xl">
+          <span className="font-sg text-[26px]">
             {phase === "running" ? formatBytes(memory) : "—"}
           </span>
         </div>
         <div className="w-px bg-line" />
         <div className="flex flex-1 flex-col gap-1.5 py-4 pl-6">
           <span className="cap">{t("内核版本")}</span>
-          <span className="font-sg text-2xl">
+          <span className="font-sg text-[26px]">
             {phase === "running" && version ? version.replace(/^v/, "") : "—"}
           </span>
         </div>
@@ -320,7 +320,7 @@ export default function Overview() {
             key={m.key}
             onClick={() => setMode(m.key)}
             disabled={phase !== "running"}
-            className={`border-b-2 pb-1.5 text-[13px] transition-colors ${
+            className={`border-b-2 pb-1.5 text-[14px] transition-colors ${
               mode === m.key
                 ? "border-accent text-fg"
                 : "border-transparent text-dim hover:text-mut"
@@ -333,7 +333,7 @@ export default function Overview() {
         <button
           onClick={() => void setSystemProxy(!(settings?.system_proxy ?? false))}
           disabled={!settings}
-          className="flex items-center gap-2 pb-1.5 text-[13px] text-dim transition-colors hover:text-mut disabled:opacity-40"
+          className="flex items-center gap-2 pb-1.5 text-[14px] text-dim transition-colors hover:text-mut disabled:opacity-40"
         >
           <span
             className={`block h-1.5 w-1.5 rounded-full ${
@@ -342,16 +342,25 @@ export default function Overview() {
           />
           <span className={settings?.system_proxy ? "text-fg" : undefined}>{t("系统代理")}</span>
         </button>
+        <button
+          onClick={() => void toggleTun()}
+          disabled={!tunAvailable}
+          title={tunAvailable ? (tunOn ? t("关闭 TUN") : t("启用 TUN")) : t("需先安装系统服务")}
+          className="flex items-center gap-2 pb-1.5 text-[14px] text-dim transition-colors hover:text-mut disabled:opacity-40"
+        >
+          <span className={`block h-1.5 w-1.5 rounded-full ${tunOn ? "bg-ok" : "bg-faint"}`} />
+          <span className={tunOn ? "text-fg" : undefined}>TUN</span>
+        </button>
         <div className="h-4 w-px bg-line" />
         {phase === "running" ? (
-          <button onClick={stop} className="text-xs text-mut hover:text-fg">
+          <button onClick={stop} className="text-[13px] text-mut hover:text-fg">
             {t("停止内核")}
           </button>
         ) : (
           <button
             onClick={start}
             disabled={phase === "starting"}
-            className="text-xs text-accent hover:text-fg disabled:opacity-50"
+            className="text-[13px] text-accent hover:text-fg disabled:opacity-50"
           >
             {phase === "starting" ? t("启动中…") : t("启动内核")}
           </button>
@@ -369,56 +378,15 @@ export default function Overview() {
                 : mode === "direct"
                   ? t("直连模式 · 不经过节点")
                   : t("当前节点位置未知")}
+              {currentLiveRoute ? ` · ${t("{n} 条连接", { n: currentLiveRoute.conns })}` : ""}
               {globe.nodes.length > 0
                 ? ` · ${t("{n} 处可用节点", { n: globe.nodes.length })}`
                 : ""}
             </div>
-            {/* network path: local → entry → core → exit node → internet */}
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px]">
-              <span className="cap2 !text-fg-3">{t("通路")}</span>
-              <HopEl label={t("本机")} sub={self.region} />
-              <Arrow />
-              <HopEl label={entry} />
-              <Arrow />
-              <HopEl label="mihomo" />
-              <Arrow />
-              {mode === "direct" ? (
-                <HopEl label="DIRECT" sub={t("{n} 条连接", { n: live.total })} tone="ok" />
-              ) : globe.currentHops.length ? (
-                globe.currentHops.map((hp, i) => (
-                  <Fragment key={hp.name}>
-                    {i > 0 ? <Arrow /> : null}
-                    <HopEl
-                      label={hp.name}
-                      sub={
-                        i === globe.currentHops.length - 1 && currentLiveRoute
-                          ? `${hp.region} · ${t("{n} 条连接", { n: currentLiveRoute.conns })}`
-                          : hp.region
-                      }
-                      tone="accent"
-                    />
-                  </Fragment>
-                ))
-              ) : (
-                <HopEl label={globe.currentName ?? t("节点")} />
-              )}
-              <Arrow />
-              <HopEl label="Internet" />
-              {live.routes
-                .filter((r) => r.key !== currentKey)
-                .map((r) => (
-                  <span key={r.key} className="ml-2 text-ok">
-                    · {r.hops.map((h) => h.name).join(" → ")} {t("{n} 条连接", { n: r.conns })}
-                  </span>
-                ))}
-              {mode !== "direct" && live.direct > 0 ? (
-                <span className="ml-2 text-fg-3">· DIRECT {t("{n} 条连接", { n: live.direct })}</span>
-              ) : null}
-            </div>
           </div>
         ) : null}
         {error ? (
-          <div className="text-xs text-err select-text">{error}</div>
+          <div className="text-[13px] text-err select-text">{error}</div>
         ) : null}
         <div className="flex items-center gap-2.5">
           <span
@@ -432,7 +400,7 @@ export default function Overview() {
                     : "bg-dim"
             }`}
           />
-          <span className="text-[13px]">
+          <span className="text-[14px]">
             {phase === "running"
               ? t("mihomo {v} · 运行中", { v: version ?? "" })
               : phase === "starting"
@@ -453,18 +421,4 @@ export default function Overview() {
       </div>
     </div>
   );
-}
-
-function HopEl({ label, sub, tone }: { label: string; sub?: string; tone?: "ok" | "accent" }) {
-  const c = tone === "ok" ? "text-ok" : tone === "accent" ? "text-accent" : "text-fg";
-  return (
-    <span className="inline-flex items-baseline gap-1">
-      <span className={`font-semibold ${c}`}>{label}</span>
-      {sub ? <span className="text-[10px] text-fg-3">{sub}</span> : null}
-    </span>
-  );
-}
-
-function Arrow() {
-  return <span className="text-dim">→</span>;
 }
