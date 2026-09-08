@@ -59,6 +59,7 @@ app-config.json    # GUI 自身設置（AppSettings）
 
 - 訂閱下載：UA 用 `clash.meta`（服務商據此下發完整協議），解析 `subscription-userinfo` 頭顯示流量/到期
 - 生成管線：`選中的 profile → 依序應用 overrides（yaml 深合併 → js 函數變換）→ 注入 GUI 托管字段（端口、external-controller、TUN 開關等）→ config.yaml`
+- yaml 覆寫的 `append-rules` 插在最後的 `MATCH` 規則之前（其餘 `append-*` 仍接尾），否則追加的規則永遠不會被命中
 - 定時更新：Rust 側後台線程每 10 分鐘掃一次，按 profile 各自的 interval 判斷是否到期；更新後發 `profiles-auto-updated` 讓前端熱重載
 - GUI 托管字段與用戶配置分離：用戶在設置頁改的端口/DNS/TUN 等最後注入，優先級最高
 

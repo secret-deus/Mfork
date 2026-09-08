@@ -56,6 +56,7 @@ fn save_list(app: &AppHandle, list: &[OverrideMeta]) -> Result<(), String> {
 const YAML_TEMPLATE: &str = "# YAML 覆写：与订阅配置深度合并（映射递归合并，其余替换）\n\
 # 特殊键：prepend-rules / append-rules / prepend-proxies / append-proxies /\n\
 #         prepend-proxy-groups / append-proxy-groups\n\
+# append-rules 会插在最后的 MATCH 规则之前，保证追加的规则仍能命中\n\
 # 示例：\n\
 # append-rules:\n\
 #   - DOMAIN-SUFFIX,example.com,DIRECT\n";
@@ -185,6 +186,8 @@ pub fn apply_all(app: &AppHandle, doc: Mapping) -> Result<Mapping, String> {
 
 /// Recursive merge: mappings merge key-by-key, everything else replaces.
 /// `prepend-X` / `append-X` splice into the sequence at key `X`.
+/// `append-rules` lands before the trailing `MATCH` rule, otherwise mihomo
+/// would never reach the appended entries.
 pub fn deep_merge(base: &mut Mapping, patch: &Mapping) {
     for (k, v) in patch {
         if let Some(key) = k.as_str() {
@@ -204,12 +207,15 @@ pub fn deep_merge(base: &mut Mapping, patch: &Mapping) {
                         base.get_mut(&tkey).unwrap().as_sequence_mut().unwrap()
                     }
                 };
-                if prepend {
-                    for (i, item) in items.iter().enumerate() {
-                        seq.insert(i, item.clone());
-                    }
+                let at = if prepend {
+                    0
+                } else if target == "rules" {
+                    match_rule_index(seq).unwrap_or(seq.len())
                 } else {
-                    seq.extend(items.iter().cloned());
+                    seq.len()
+                };
+                for (i, item) in items.iter().enumerate() {
+                    seq.insert(at + i, item.clone());
                 }
                 continue;
             }
@@ -221,6 +227,16 @@ pub fn deep_merge(base: &mut Mapping, patch: &Mapping) {
             }
         }
     }
+}
+
+/// Index of the first `MATCH` rule, which mihomo treats as the terminal
+/// catch-all. `None` when the rule list has no such entry.
+fn match_rule_index(rules: &[Value]) -> Option<usize> {
+    rules.iter().position(|r| {
+        r.as_str()
+            .map(|s| s.trim_start().to_ascii_uppercase().starts_with("MATCH"))
+            .unwrap_or(false)
+    })
 }
 
 /// Run a JS override: the script must define `main(config)` returning the
@@ -273,8 +289,50 @@ mod tests {
         deep_merge(&mut base, &patch);
         let rules = base.get("rules").unwrap().as_sequence().unwrap();
         assert_eq!(rules[0].as_str().unwrap(), "DOMAIN,a.com,DIRECT");
-        assert_eq!(rules[1].as_str().unwrap(), "MATCH,DIRECT");
-        assert_eq!(rules[2].as_str().unwrap(), "DOMAIN,b.com,DIRECT");
+        assert_eq!(rules[1].as_str().unwrap(), "DOMAIN,b.com,DIRECT");
+        assert_eq!(rules[2].as_str().unwrap(), "MATCH,DIRECT");
+    }
+
+    #[test]
+    fn append_rules_lands_before_match() {
+        let mut base = yaml("rules:\n  - DOMAIN,a.com,DIRECT\n  - MATCH,Proxy");
+        let patch = yaml(
+            "append-rules:\n  - DOMAIN-SUFFIX,b.com,DIRECT\n  - DOMAIN-SUFFIX,c.com,DIRECT",
+        );
+        deep_merge(&mut base, &patch);
+        let rules: Vec<&str> = base
+            .get("rules")
+            .unwrap()
+            .as_sequence()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap())
+            .collect();
+        assert_eq!(
+            rules,
+            [
+                "DOMAIN,a.com,DIRECT",
+                "DOMAIN-SUFFIX,b.com,DIRECT",
+                "DOMAIN-SUFFIX,c.com,DIRECT",
+                "MATCH,Proxy",
+            ]
+        );
+    }
+
+    #[test]
+    fn append_other_sequences_stays_at_end() {
+        let mut base = yaml("proxies:\n  - {name: a, type: direct}");
+        let patch = yaml("append-proxies:\n  - {name: b, type: direct}");
+        deep_merge(&mut base, &patch);
+        let names: Vec<&str> = base
+            .get("proxies")
+            .unwrap()
+            .as_sequence()
+            .unwrap()
+            .iter()
+            .map(|v| v.get("name").unwrap().as_str().unwrap())
+            .collect();
+        assert_eq!(names, ["a", "b"]);
     }
 
     #[test]
