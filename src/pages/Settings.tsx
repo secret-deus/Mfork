@@ -393,11 +393,7 @@ function CoreSection() {
 
 function NetworkSection() {
   const t = useT();
-  const { api, settings, updateSettings, restart, phase } = useApp();
-  const apply = async (patch: Partial<AppSettings>) => {
-    await updateSettings(patch);
-    if (phase === "running") await restart();
-  };
+  const { api, settings, applySettings } = useApp();
   return (
     <Sect title={t("网络")}>
       <Row
@@ -405,18 +401,21 @@ function NetworkSection() {
         sub={
           settings?.mixed_port
             ? t("HTTP 与 SOCKS5 共用 · 固定端口")
-            : t("HTTP 与 SOCKS5 共用 · 留空为每次随机")
+            : t("HTTP 与 SOCKS5 共用 · 留空为自动（沿用上次端口）")
         }
         right={
           <div className="flex items-center gap-3">
             {api ? <Val>{api.mixed_port}</Val> : null}
             <Field
               width="w-20"
-              placeholder={t("随机")}
+              placeholder={t("自动")}
               value={settings?.mixed_port ? String(settings.mixed_port) : ""}
               onCommit={(v) => {
                 const n = parseInt(v, 10);
-                void apply({ mixed_port: Number.isFinite(n) && n > 0 && n < 65536 ? n : 0 });
+                void applySettings(
+                  { mixed_port: Number.isFinite(n) && n > 0 && n < 65536 ? n : 0 },
+                  "restart",
+                );
               }}
               disabled={!settings}
             />
@@ -433,7 +432,7 @@ function NetworkSection() {
         right={
           <Toggle
             on={settings?.allow_lan ?? false}
-            onChange={(v) => void apply({ allow_lan: v })}
+            onChange={(v) => void applySettings({ allow_lan: v }, "hot")}
             disabled={!settings}
           />
         }
@@ -443,7 +442,7 @@ function NetworkSection() {
         right={
           <Toggle
             on={settings?.ipv6 ?? false}
-            onChange={(v) => void apply({ ipv6: v })}
+            onChange={(v) => void applySettings({ ipv6: v }, "hot")}
             disabled={!settings}
           />
         }
@@ -511,7 +510,7 @@ function SystemSection() {
 
 function TunSection() {
   const t = useT();
-  const { phase, settings, updateSettings, restart } = useApp();
+  const { settings, applySettings } = useApp();
   const [svc, setSvc] = useState<ServiceStatus | null>(null);
   const [svcBusy, setSvcBusy] = useState(false);
   const [svcError, setSvcError] = useState<string | null>(null);
@@ -520,10 +519,10 @@ function TunSection() {
     void serviceStatus().then(setSvc);
   }, []);
 
-  const applyAndRestart = async (patch: Partial<AppSettings>) => {
-    await updateSettings(patch);
-    if (phase === "running") await restart();
-  };
+  // entering / leaving TUN mode switches who runs the core (service vs.
+  // child process) and needs a restart; the other knobs reload in place
+  const applyAndRestart = (patch: Partial<AppSettings>) => applySettings(patch, "restart");
+  const applyHot = (patch: Partial<AppSettings>) => applySettings(patch, "hot");
 
   const svcAction = async (action: () => Promise<void>) => {
     setSvcBusy(true);
@@ -593,7 +592,7 @@ function TunSection() {
               { value: "system", label: "System" },
             ]}
             onChange={(v) => {
-              if (tun) void applyAndRestart({ tun: { ...tun, stack: v as typeof tun.stack } });
+              if (tun) void applyHot({ tun: { ...tun, stack: v as typeof tun.stack } });
             }}
             disabled={!tun}
           />
@@ -605,7 +604,7 @@ function TunSection() {
           <Toggle
             on={tun?.strict_route ?? true}
             onChange={(v) => {
-              if (tun) void applyAndRestart({ tun: { ...tun, strict_route: v } });
+              if (tun) void applyHot({ tun: { ...tun, strict_route: v } });
             }}
             disabled={!tun}
           />
@@ -618,7 +617,7 @@ function TunSection() {
           <Toggle
             on={tun?.dns_hijack ?? true}
             onChange={(v) => {
-              if (tun) void applyAndRestart({ tun: { ...tun, dns_hijack: v } });
+              if (tun) void applyHot({ tun: { ...tun, dns_hijack: v } });
             }}
             disabled={!tun}
           />
@@ -631,11 +630,8 @@ function TunSection() {
 
 function DnsSection() {
   const t = useT();
-  const { phase, settings, updateSettings, restart } = useApp();
-  const applyAndRestart = async (patch: Partial<AppSettings>) => {
-    await updateSettings(patch);
-    if (phase === "running") await restart();
-  };
+  const { settings, applySettings } = useApp();
+  const applyHot = (patch: Partial<AppSettings>) => applySettings(patch, "hot");
   const dns = settings?.dns;
   return (
     <Sect title="DNS">
@@ -646,7 +642,7 @@ function DnsSection() {
           <Toggle
             on={dns?.enable ?? false}
             onChange={(v) => {
-              if (dns) void applyAndRestart({ dns: { ...dns, enable: v } });
+              if (dns) void applyHot({ dns: { ...dns, enable: v } });
             }}
             disabled={!dns}
           />
@@ -663,7 +659,7 @@ function DnsSection() {
             ]}
             onChange={(v) => {
               if (dns)
-                void applyAndRestart({
+                void applyHot({
                   dns: { ...dns, enhanced_mode: v as typeof dns.enhanced_mode },
                 });
             }}
@@ -685,7 +681,7 @@ function DnsSection() {
                 .map((s) => s.trim())
                 .filter(Boolean);
               if (list.join() !== dns.nameserver.join())
-                void applyAndRestart({ dns: { ...dns, nameserver: list } });
+                void applyHot({ dns: { ...dns, nameserver: list } });
             }}
             disabled={!dns || !dns.enable}
           />

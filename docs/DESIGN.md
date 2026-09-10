@@ -42,7 +42,7 @@
 - 隨包捆綁一份 mihomo（`resources/mihomo/`，由 `scripts/fetch-core.mjs` 拉取）；設置頁可按 stable / alpha 通道從 GitHub Releases 自升級，新內核放 `<app-data>/core-bin/` 並優先使用，可一鍵恢復自帶版本（見 `updater` 模塊）
 - 啟動流程：生成最終配置 → spawn 子進程（TUN 開啟時改由提權服務代啟）→ 輪詢 API 端口就緒（≤8s）→ 返回 ApiInfo 給前端 → 重新指向系統代理
 - 守護：watcher 線程偵測子進程退出，清掉系統代理並向前端發 `core-exited`（前端顯示異常，不自動重啟）；stdout/stderr 落盤 `core/core.log`、`core.err.log`
-- external-controller 隨機端口 + 隨機 secret；混合端口默認隨機，設置頁可固定
+- external-controller 隨機端口 + 隨機 secret；混合端口默認自動（沿用上次使用的端口，被佔用時另選），設置頁可固定
 - 退出 GUI 時殺內核（含服務代啟的），不留孤兒進程
 
 ### 2.2 配置/訂閱系統（Rust `profile` 模塊）
@@ -62,6 +62,7 @@ app-config.json    # GUI 自身設置（AppSettings）
 - yaml 覆寫的 `append-rules` 插在最後的 `MATCH` 規則之前（其餘 `append-*` 仍接尾），否則追加的規則永遠不會被命中
 - 定時更新：Rust 側後台線程每 10 分鐘掃一次，按 profile 各自的 interval 判斷是否到期；更新後發 `profiles-auto-updated` 讓前端熱重載
 - GUI 托管字段與用戶配置分離：用戶在設置頁改的端口/DNS/TUN 等最後注入，優先級最高
+- 設置變更的套用方式：DNS、允許局域網、IPv6、TUN 參數（協議棧/嚴格路由/DNS 劫持）重新生成 config.yaml 後以 `PUT /configs?force=true` 熱重載（同一進程，現有連接不斷）；混合端口與 TUN 開關（切換由服務還是子進程運行內核）需重啟內核。start/stop/restart 在前端串行化，排隊中的重複 restart 合併
 
 ### 2.3 系統集成（Rust `system` 模塊）
 

@@ -282,5 +282,12 @@ const en: Record<string, string> = {
   "检查更新失败：{e}": "Update check failed: {e}",
   "下载并安装": "Download & install",
   "安装完成，正在重启…": "Installed, restarting…",
+  // ---- global toast / hot reload
+  "HTTP 与 SOCKS5 共用 · 留空为自动（沿用上次端口）": "Shared by HTTP and SOCKS5 · blank = automatic (keeps the last port)",
+  "自动": "auto",
+  "应用设置失败: {msg}": "Failed to apply settings: {msg}",
+  "设置文件损坏，已恢复默认：{msg}": "Settings file was corrupt and has been reset: {msg}",
+  "切换节点失败: {msg}": "Failed to switch node: {msg}",
+  "关闭连接失败: {msg}": "Failed to close connection: {msg}",
 };
 export default en;

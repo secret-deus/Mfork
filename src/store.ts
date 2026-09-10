@@ -5,7 +5,9 @@ import {
   AppSettings,
   apiGet,
   apiPatch,
+  apiPut,
   autostartGet,
+  configRegenerate,
   autostartSet,
   coreStart,
   coreStatus,
@@ -23,6 +25,13 @@ import { applyTheme } from "./theme";
 export type CorePhase = "stopped" | "starting" | "running" | "error";
 export type ProxyMode = "rule" | "global" | "direct";
 
+/** Transient message shown by the global toast (App.tsx). */
+export interface Notice {
+  id: number;
+  text: string;
+  err: boolean;
+}
+
 interface AppState {
   phase: CorePhase;
   api: ApiInfo | null;
@@ -38,6 +47,10 @@ interface AppState {
   logsPaused: boolean;
   settings: AppSettings | null;
   autostart: boolean;
+  notice: Notice | null;
+  /** show a toast; errors stay a little longer */
+  notify: (text: string, err?: boolean) => void;
+  dismissNotice: () => void;
   setLogsPaused: (paused: boolean) => void;
   clearLogs: () => void;
   start: () => Promise<void>;
@@ -46,6 +59,15 @@ interface AppState {
   syncConfig: () => Promise<void>;
   setSystemProxy: (enable: boolean) => Promise<void>;
   updateSettings: (patch: Partial<AppSettings>) => Promise<void>;
+  /**
+   * Persist a settings patch and make the running core pick it up: "hot"
+   * regenerates config.yaml and reloads it in place (PUT /configs), which
+   * keeps existing connections; "restart" is for changes the core cannot
+   * apply live (mixed port, entering/leaving TUN mode).
+   */
+  applySettings: (patch: Partial<AppSettings>, how: "hot" | "restart") => Promise<void>;
+  /** regenerate config.yaml from the current profile + settings and hot-reload it */
+  reloadConfig: () => Promise<void>;
   /** settings changed on disk behind our back (backup restore): reload */
   reloadSettings: () => Promise<void>;
   restart: () => Promise<void>;
@@ -139,18 +161,65 @@ function openStreams(
 
 let initialized = false;
 
+// start / stop / restart are serialised: two overlapping restarts used to
+// spawn two cores and then kill both (core_start releases its lock before
+// the API port is up). A restart requested while one is still *queued* is
+// coalesced into it; one requested while a restart is already running is
+// queued behind it so a settings change made mid-restart is not lost.
+let lifecycle: Promise<void> = Promise.resolve();
+let queuedRestart: Promise<void> | null = null;
+function serialize(fn: () => Promise<void>): Promise<void> {
+  const next = lifecycle.then(fn, fn);
+  lifecycle = next.catch(() => {});
+  return next;
+}
+
+let noticeTimer: number | null = null;
+
 /** Mirror persisted appearance settings into the DOM / i18n store. */
 function applyAppearance(s: AppSettings) {
   applyTheme(s.theme);
   if (isLocale(s.locale)) useLocale.getState().setLocale(s.locale);
 }
 
-async function apiPatchlessReload(api: ApiInfo, path: string) {
-  const { apiPut } = await import("./lib/core");
+/** Reload a regenerated config in place: connections survive, listeners are re-created as needed. */
+async function hotReload(api: ApiInfo, path: string) {
   await apiPut(api, "/configs?force=true", { path });
 }
 
-export const useApp = create<AppState>((set, get) => ({
+export const useApp = create<AppState>((set, get) => {
+  const startImpl = async () => {
+    set({ phase: "starting", error: null });
+    try {
+      const api = await coreStart();
+      const version = await apiGet<{ version: string }>(api, "/version");
+      const configs = await apiGet<{ mode: string }>(api, "/configs");
+      openStreams(api, set, get);
+      const mode = configs.mode.toLowerCase() as ProxyMode;
+      set({ phase: "running", api, version: version.version, mode });
+      void traySync(mode);
+    } catch (e) {
+      set({ phase: "error", error: String(e), api: null });
+      void traySync(null);
+    }
+  };
+
+  const stopImpl = async () => {
+    closeStreams();
+    await coreStop();
+    set({
+      phase: "stopped",
+      api: null,
+      up: 0,
+      down: 0,
+      memory: 0,
+      connections: 0,
+      snapshot: null,
+    });
+    void traySync(null);
+  };
+
+  return {
   phase: "stopped",
   api: null,
   error: null,
@@ -165,6 +234,21 @@ export const useApp = create<AppState>((set, get) => ({
   logsPaused: false,
   settings: null,
   autostart: false,
+  notice: null,
+
+  notify(text, err = true) {
+    const id = Date.now() + Math.random();
+    set({ notice: { id, text, err } });
+    if (noticeTimer != null) clearTimeout(noticeTimer);
+    noticeTimer = window.setTimeout(() => {
+      noticeTimer = null;
+      if (get().notice?.id === id) set({ notice: null });
+    }, err ? 8000 : 4000);
+  },
+
+  dismissNotice() {
+    set({ notice: null });
+  },
 
   setLogsPaused(paused) {
     set({ logsPaused: paused });
@@ -175,35 +259,19 @@ export const useApp = create<AppState>((set, get) => ({
     set({ logs: [] });
   },
 
-  async start() {
-    set({ phase: "starting", error: null });
-    try {
-      const api = await coreStart();
-      const version = await apiGet<{ version: string }>(api, "/version");
-      const configs = await apiGet<{ mode: string }>(api, "/configs");
-      openStreams(api, set, get);
-      const mode = configs.mode.toLowerCase() as ProxyMode;
-      set({ phase: "running", api, version: version.version, mode });
-      void traySync(mode);
-    } catch (e) {
-      set({ phase: "error", error: String(e), api: null });
-      void traySync(null);
-    }
-  },
+  start: () => serialize(startImpl),
 
-  async stop() {
-    closeStreams();
-    await coreStop();
-    set({
-      phase: "stopped",
-      api: null,
-      up: 0,
-      down: 0,
-      memory: 0,
-      connections: 0,
-      snapshot: null,
+  stop: () => serialize(stopImpl),
+
+  restart() {
+    if (queuedRestart) return queuedRestart;
+    const p = serialize(async () => {
+      queuedRestart = null;
+      if (get().phase === "running") await stopImpl();
+      await startImpl();
     });
-    void traySync(null);
+    queuedRestart = p;
+    return p;
   },
 
   async setMode(mode) {
@@ -220,7 +288,7 @@ export const useApp = create<AppState>((set, get) => ({
       const s = get().settings;
       if (s) set({ settings: { ...s, system_proxy: enable } });
     } catch (e) {
-      set({ error: String(e) });
+      get().notify(String(e));
     }
   },
 
@@ -238,9 +306,24 @@ export const useApp = create<AppState>((set, get) => ({
     applyAppearance(s);
   },
 
-  async restart() {
-    if (get().phase === "running") await get().stop();
-    await get().start();
+  async applySettings(patch, how) {
+    await get().updateSettings(patch);
+    if (get().phase !== "running") return;
+    try {
+      if (how === "restart") await get().restart();
+      else await get().reloadConfig();
+    } catch (e) {
+      get().notify(t("应用设置失败: {msg}", { msg: String(e) }));
+    }
+  },
+
+  async reloadConfig() {
+    const { api } = get();
+    if (!api) return;
+    const path = await configRegenerate();
+    if (!path) return;
+    await hotReload(api, path);
+    await get().syncConfig();
   },
 
   async setAutostart(enable) {
@@ -273,28 +356,37 @@ export const useApp = create<AppState>((set, get) => ({
       if (s) set({ settings: { ...s, system_proxy: e.payload } });
     });
     await listen<string>("sys-proxy-error", (e) => {
-      set({ error: e.payload });
+      get().notify(e.payload);
+    });
+    // app-config.json failed to parse: the backend moved it aside
+    await listen<string>("settings-corrupt", (e) => {
+      get().notify(t("设置文件损坏，已恢复默认：{msg}", { msg: e.payload }));
+      void get().reloadSettings();
     });
     // auto-updated subscriptions: hot-reload the regenerated config
     await listen<string | null>("profiles-auto-updated", (e) => {
       const { api } = get();
       if (e.payload && api) {
-        void apiPatchlessReload(api, e.payload).then(() => get().syncConfig());
+        void hotReload(api, e.payload)
+          .then(() => get().syncConfig())
+          .catch((err) => get().notify(String(err)));
       }
     });
     await listen<number | null>("core-exited", (e) => {
       closeStreams();
       void traySync(null);
+      const msg = t("内核进程意外退出（code {code}）", { code: e.payload ?? "?" });
       set({
         phase: "error",
         api: null,
-        error: t("内核进程意外退出（code {code}）", { code: e.payload ?? "?" }),
+        error: msg,
         up: 0,
         down: 0,
         memory: 0,
         connections: 0,
         snapshot: null,
       });
+      get().notify(msg);
     });
     const status = await coreStatus();
     if (status.running && status.api) {
@@ -314,4 +406,5 @@ export const useApp = create<AppState>((set, get) => ({
       await get().start();
     }
   },
-}));
+  };
+});

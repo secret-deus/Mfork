@@ -132,8 +132,10 @@ export interface WebdavSettings {
 }
 
 export interface AppSettings {
-  /** fixed mixed port; 0 = random on every start */
+  /** fixed mixed port; 0 = automatic (the last port is reused while free) */
   mixed_port: number;
+  /** port the last automatic start used; managed by the backend */
+  last_mixed_port: number;
   allow_lan: boolean;
   ipv6: boolean;
   system_proxy: boolean;
