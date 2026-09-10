@@ -31,6 +31,8 @@ pub struct Resp {
     pub msg: Option<String>,
     pub core_running: Option<bool>,
     pub pid: Option<u32>,
+    /// data dir the service started the core in (its core.err.log lives there)
+    pub dir: Option<String>,
 }
 
 const SERVICE_BIN: &str = if cfg!(windows) { "mfork-service.exe" } else { "mfork-service" };
@@ -104,10 +106,11 @@ pub fn core_running(app: &AppHandle) -> bool {
         .unwrap_or(false)
 }
 
-pub fn start_core(app: &AppHandle, config: &str, dir: &str) -> Result<u32, String> {
+/// Returns (pid, data dir chosen by the service).
+pub fn start_core(app: &AppHandle, config: &str, dir: &str) -> Result<(u32, Option<String>), String> {
     let r = call(app, "start", Some(config), Some(dir))?;
     if r.ok {
-        Ok(r.pid.unwrap_or(0))
+        Ok((r.pid.unwrap_or(0), r.dir))
     } else {
         Err(r.msg.unwrap_or_else(|| "服务启动内核失败".into()))
     }

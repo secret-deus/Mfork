@@ -13,8 +13,10 @@
 //! Security model: at install time the core binary is *copied* into the
 //! service's own directory (admin/root-writable only) and that copy is
 //! pinned; the service never executes anything from a user-writable path.
-//! Requests can only choose the config file and data dir, never the
-//! executable. On Unix the token file is owned by the installing user with
+//! Requests can only choose the config file, never the executable; the
+//! data dir (and the core's log files) live under the service's own
+//! directory, so nothing is ever created with root/SYSTEM privilege at a
+//! caller-chosen path. On Unix the token file is owned by the installing user with
 //! mode 0600 so other local users cannot drive the daemon.
 //!
 //! Subcommands (run elevated):
@@ -39,6 +41,8 @@ struct Req {
     token: String,
     cmd: String,
     config: Option<String>,
+    /// accepted for protocol compatibility, ignored (see "start")
+    #[allow(dead_code)]
     dir: Option<String>,
 }
 
@@ -51,6 +55,9 @@ struct Resp {
     core_running: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pid: Option<u32>,
+    /// data dir the core was started with (holds core.log / core.err.log)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    dir: Option<String>,
 }
 
 fn exe_dir() -> PathBuf {
@@ -66,6 +73,13 @@ fn token_path() -> PathBuf {
 
 fn core_path_file() -> PathBuf {
     exe_dir().join("core-path.txt")
+}
+
+/// The core's working dir (cache, geodata, logs): admin/root-writable only,
+/// so a symlink or junction planted by an unprivileged process can never
+/// redirect what the SYSTEM/root core writes.
+fn data_dir() -> PathBuf {
+    exe_dir().join("data")
 }
 
 /// Copy the core binary (and, on Windows, wintun.dll beside it) into
@@ -153,20 +167,30 @@ fn handle(req: &Req, token: &str, core_bin: &str) -> Resp {
             Resp { ok: true, core_running: Some(running), pid, ..Default::default() }
         }
         "start" => {
-            let (Some(config), Some(dir)) = (&req.config, &req.dir) else {
-                return Resp { ok: false, msg: Some("missing config/dir".into()), ..Default::default() };
+            // `dir` in the request is accepted for protocol compatibility
+            // and ignored: the caller does not get to pick where root writes
+            let Some(config) = &req.config else {
+                return Resp { ok: false, msg: Some("missing config".into()), ..Default::default() };
             };
+            let cfg = PathBuf::from(config);
+            if !cfg.is_absolute() || !cfg.is_file() {
+                return Resp { ok: false, msg: Some("config must be an absolute path to a file".into()), ..Default::default() };
+            }
+            let dir = data_dir();
+            if let Err(e) = std::fs::create_dir_all(&dir) {
+                return Resp { ok: false, msg: Some(format!("create data dir: {e}")), ..Default::default() };
+            }
             stop_core();
             let out = |name: &str| {
-                std::fs::File::create(PathBuf::from(dir).join(name))
+                std::fs::File::create(dir.join(name))
                     .map(std::process::Stdio::from)
                     .unwrap_or_else(|_| std::process::Stdio::null())
             };
             match Command::new(core_bin)
                 .arg("-d")
-                .arg(dir)
+                .arg(&dir)
                 .arg("-f")
-                .arg(config)
+                .arg(&cfg)
                 .stdout(out("core.log"))
                 .stderr(out("core.err.log"))
                 .spawn()
@@ -174,7 +198,12 @@ fn handle(req: &Req, token: &str, core_bin: &str) -> Resp {
                 Ok(child) => {
                     let pid = child.id();
                     *CHILD.lock().unwrap() = Some(child);
-                    Resp { ok: true, pid: Some(pid), ..Default::default() }
+                    Resp {
+                        ok: true,
+                        pid: Some(pid),
+                        dir: Some(dir.to_string_lossy().to_string()),
+                        ..Default::default()
+                    }
                 }
                 Err(e) => Resp { ok: false, msg: Some(format!("spawn failed: {e}")), ..Default::default() },
             }

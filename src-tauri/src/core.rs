@@ -146,12 +146,18 @@ pub fn core_start(app: AppHandle, state: State<'_, CoreState>) -> Result<ApiInfo
     }
 
     let pid;
+    // where core.err.log ends up: our data dir, or the service's own
+    let mut log_dir = dir.clone();
     if use_service {
-        pid = crate::service::start_core(
+        let (p, svc_dir) = crate::service::start_core(
             &app,
             &config_path.to_string_lossy(),
             &dir.to_string_lossy(),
         )?;
+        pid = p;
+        if let Some(d) = svc_dir {
+            log_dir = PathBuf::from(d);
+        }
         *state.via_service.lock().unwrap() = true;
     } else {
         let mut cmd = Command::new(&bin);
@@ -194,7 +200,7 @@ pub fn core_start(app: AppHandle, state: State<'_, CoreState>) -> Result<ApiInfo
             let _ = core_stop_inner(&app, &state);
             return Err(format!(
                 "mihomo (pid {pid}) did not open the API port within 8s — see core.err.log in {}",
-                dir.display()
+                log_dir.display()
             ));
         }
         std::thread::sleep(Duration::from_millis(150));
