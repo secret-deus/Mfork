@@ -75,7 +75,7 @@ function Th({
 
 export default function Connections() {
   const t = useT();
-  const { api, phase, snapshot } = useApp();
+  const { api, phase, snapshot, notify } = useApp();
   const [view, setView] = useState<View>("socket");
   const [filter, setFilter] = useState("");
   const [net, setNet] = useState<Net>("all");
@@ -160,11 +160,12 @@ export default function Connections() {
     return [...m.values()].sort((a, b) => b.downSpeed - a.downSpeed || b.down - a.down);
   }, [items]);
 
+  const fail = (e: unknown) => notify(t("关闭连接失败: {msg}", { msg: String(e) }));
   const closeOne = (id: string) => {
-    if (api) void apiDelete(api, `/connections/${id}`);
+    if (api) void apiDelete(api, `/connections/${id}`).catch(fail);
   };
   const closeAll = () => {
-    if (api) void apiDelete(api, "/connections");
+    if (api) void apiDelete(api, "/connections").catch(fail);
   };
 
   const chip = (on: boolean) =>

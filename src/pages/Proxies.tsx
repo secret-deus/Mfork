@@ -28,7 +28,7 @@ const SORTS: { key: SortBy; label: string }[] = [
 
 export default function Proxies() {
   const t = useT();
-  const { api, phase } = useApp();
+  const { api, phase, notify } = useApp();
   const [groups, setGroups] = useState<ProxyGroup[]>([]);
   const [nodes, setNodes] = useState<Record<string, ProxyNode>>({});
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -82,7 +82,11 @@ export default function Proxies() {
 
   const select = async (group: string, node: string) => {
     if (!api) return;
-    await apiPut(api, `/proxies/${encodeURIComponent(group)}`, { name: node });
+    try {
+      await apiPut(api, `/proxies/${encodeURIComponent(group)}`, { name: node });
+    } catch (e) {
+      notify(t("切换节点失败: {msg}", { msg: String(e) }));
+    }
     await refresh();
   };
 

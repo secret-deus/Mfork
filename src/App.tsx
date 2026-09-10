@@ -24,6 +24,25 @@ import {
 
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.userAgent);
 
+/** Global toast: operation failures from any page land here (store.notify). */
+function Toast() {
+  const notice = useApp((s) => s.notice);
+  const dismiss = useApp((s) => s.dismissNotice);
+  if (!notice) return null;
+  return (
+    <div className="pointer-events-none absolute inset-x-0 bottom-6 z-40 flex justify-center">
+      <div
+        onClick={dismiss}
+        className={`pointer-events-auto max-w-[60%] cursor-pointer select-text rounded-[10px] border border-line-soft bg-surface px-4 py-2.5 text-[13px] leading-snug shadow-md ${
+          notice.err ? "text-err" : "text-fg-2"
+        }`}
+      >
+        {notice.text}
+      </div>
+    </div>
+  );
+}
+
 /** Windows / Linux: the window is frameless, so draw our own controls. */
 function WindowControls() {
   const win = getCurrentWindow();
@@ -124,6 +143,7 @@ export default function App() {
           <Settings />
         )}
       </main>
+      <Toast />
     </div>
   );
 }
