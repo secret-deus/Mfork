@@ -335,25 +335,20 @@ pub fn profile_select(
     }
 }
 
-/// Build the final kernel config: active profile (or a DIRECT-only stub)
-/// with GUI-managed fields injected on top.
+/// Build the final kernel config: active profile with GUI-managed fields
+/// injected on top. Only the *absence* of a selected profile yields the
+/// DIRECT-only stub; a selected profile that cannot be read or parsed is an
+/// error, never a silent fall-through to direct connections.
 pub fn generate_config(
     app: &AppHandle,
     api_port: u16,
     secret: &str,
     mixed_port: u16,
 ) -> Result<PathBuf, String> {
-    let idx = load_index(app).unwrap_or_default();
+    let idx = load_index(app).map_err(|e| format!("订阅索引损坏（profiles/index.json）: {e}"))?;
 
-    let mut doc: Mapping = idx
-        .active
-        .as_ref()
-        .and_then(|id| profile_path(app, id).ok())
-        .filter(|p| p.exists())
-        .and_then(|p| std::fs::read_to_string(p).ok())
-        .and_then(|s| serde_yaml::from_str::<Value>(s.trim_start_matches('\u{feff}')).ok())
-        .and_then(|v| v.as_mapping().cloned())
-        .unwrap_or_else(|| {
+    let mut doc: Mapping = match idx.active.as_deref() {
+        None => {
             let mut m = Mapping::new();
             m.insert("proxies".into(), Value::Sequence(vec![]));
             m.insert("proxy-groups".into(), Value::Sequence(vec![]));
@@ -362,7 +357,24 @@ pub fn generate_config(
                 Value::Sequence(vec![Value::String("MATCH,DIRECT".into())]),
             );
             m
-        });
+        }
+        Some(id) => {
+            let name = idx
+                .items
+                .iter()
+                .find(|p| p.id == id)
+                .map(|p| p.name.clone())
+                .unwrap_or_else(|| id.to_string());
+            let p = profile_path(app, id)?;
+            let text = std::fs::read_to_string(&p)
+                .map_err(|e| format!("无法读取当前订阅「{name}」: {e}"))?;
+            let v: Value = serde_yaml::from_str(text.trim_start_matches('\u{feff}'))
+                .map_err(|e| format!("当前订阅「{name}」不是有效的 YAML: {e}"))?;
+            v.as_mapping()
+                .cloned()
+                .ok_or_else(|| format!("当前订阅「{name}」不是有效的 Clash 配置"))?
+        }
+    };
 
     // overrides run on the raw profile, before GUI-managed fields
     doc = crate::override_::apply_all(app, doc)?;
