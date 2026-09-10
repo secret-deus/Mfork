@@ -212,15 +212,22 @@ struct Progress {
     total: u64,
 }
 
+#[derive(Clone, Serialize)]
+pub struct UpgradeResult {
+    pub version: String,
+    /// set when the binary was replaced but the elevated service could not
+    /// be re-pinned to it: TUN mode keeps running the previous version
+    pub warning: Option<String>,
+}
+
 /// Download + install the release for `channel`; stops the core first (a
 /// running exe cannot be replaced on Windows). The frontend restarts it.
-/// Returns the new version string.
 #[tauri::command]
 pub fn core_upgrade(
     app: AppHandle,
     state: State<'_, CoreState>,
     channel: String,
-) -> Result<String, String> {
+) -> Result<UpgradeResult, String> {
     let (rel, via_core) = fetch_release(&app, &channel)?;
     let client = client(&app, Duration::from_secs(600), via_core)?;
     let mut resp = client
@@ -283,10 +290,23 @@ pub fn core_upgrade(
     // the service (if any) and our child both need the core stopped
     crate::core::stop_for_upgrade(&app, &state);
     let dest = dir.join(CORE_BIN);
-    if dest.exists() {
-        let _ = std::fs::remove_file(&dest);
+    // keep the previous upgrade aside until the new one is in place
+    let old = dir.join(format!("{CORE_BIN}.old"));
+    let _ = std::fs::remove_file(&old);
+    let had_old = dest.exists();
+    if had_old {
+        std::fs::rename(&dest, &old).map_err(|e| format!("备份旧内核失败: {e}"))?;
     }
-    std::fs::rename(&tmp, &dest).map_err(|e| format!("替换内核失败: {e}"))?;
+    if let Err(e) = std::fs::rename(&tmp, &dest) {
+        if had_old {
+            let _ = std::fs::rename(&old, &dest);
+        }
+        let _ = std::fs::remove_file(&tmp);
+        return Err(format!("替换内核失败: {e}"));
+    }
+    if had_old {
+        let _ = std::fs::remove_file(&old);
+    }
 
     // TUN on Windows loads wintun.dll from the core's own directory
     if cfg!(windows) {
@@ -299,32 +319,35 @@ pub fn core_upgrade(
         }
     }
 
-    // the elevated service pins the core path at install time: re-pin
-    // (one UAC prompt) so TUN mode uses the new binary too
+    // the elevated service pins its own copy of the core: re-pin (one UAC
+    // prompt) so TUN mode uses the new binary too. Failure is reported in
+    // the result rather than hidden behind a success return.
+    let mut warning = None;
     if crate::service::installed(&app) {
         if let Err(e) = crate::service::repin(&app, &dest) {
-            let _ = app.emit(
-                "core-upgrade-warning",
-                format!("内核已更新，但服务未重新指向新内核：{e}"),
-            );
+            warning = Some(format!(
+                "内核文件已更新，但系统服务仍指向旧版本（{e}）。TUN 模式将继续使用旧内核，可在 TUN 设置中「重新指向内核」。"
+            ));
         }
     }
-    Ok(new_ver)
+    Ok(UpgradeResult { version: new_ver, warning })
 }
 
-/// Remove the upgraded binary so the bundled one is used again.
+/// Remove the upgraded binary so the bundled one is used again. Order:
+/// verify the bundled binary, re-pin the service, and only then delete —
+/// a failure part-way leaves the upgraded copy usable.
 #[tauri::command]
 pub fn core_revert(app: AppHandle, state: State<'_, CoreState>) -> Result<(), String> {
     let dir = upgraded_dir(&app)?;
     if !dir.exists() {
         return Ok(());
     }
+    let bundled = crate::core::bundled_binary(&app)?;
     crate::core::stop_for_upgrade(&app, &state);
-    std::fs::remove_dir_all(&dir).map_err(|e| e.to_string())?;
     if crate::service::installed(&app) {
-        let bundled = crate::core::bundled_binary(&app)?;
         crate::service::repin(&app, &bundled)?;
     }
+    std::fs::remove_dir_all(&dir).map_err(|e| e.to_string())?;
     Ok(())
 }
 

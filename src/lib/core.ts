@@ -168,8 +168,14 @@ export interface CoreRelease {
 export const coreVersionInfo = () => invoke<CoreVersionInfo>("core_version_info");
 export const coreCheckUpdate = (channel: string) =>
   invoke<CoreRelease>("core_check_update", { channel });
+export interface UpgradeResult {
+  version: string;
+  /** binary replaced, but the elevated service still runs the old one */
+  warning: string | null;
+}
+
 export const coreUpgrade = (channel: string) =>
-  invoke<string>("core_upgrade", { channel });
+  invoke<UpgradeResult>("core_upgrade", { channel });
 export const coreRevert = () => invoke<void>("core_revert");
 
 // ---- backup (M6)

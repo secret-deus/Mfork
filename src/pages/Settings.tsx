@@ -211,12 +211,8 @@ function CoreSection() {
       const { received, total } = e.payload;
       setProgress(total > 0 ? Math.min(100, Math.round((received / total) * 100)) : null);
     });
-    const un2 = listen<string>("core-upgrade-warning", (e) =>
-      setMsg({ text: e.payload, err: true }),
-    );
     return () => {
       void un.then((f) => f());
-      void un2.then((f) => f());
     };
   }, []);
 
@@ -243,9 +239,13 @@ function CoreSection() {
     setMsg(null);
     setProgress(0);
     try {
-      const v = await coreUpgrade(channel);
+      const r = await coreUpgrade(channel);
       setLatest(null);
-      setMsg({ text: t("内核已更新到 {v}", { v }) });
+      setMsg(
+        r.warning
+          ? { text: r.warning, err: true }
+          : { text: t("内核已更新到 {v}", { v: r.version }) },
+      );
       await restart();
     } catch (e) {
       setMsg({ text: String(e), err: true });
@@ -267,6 +267,8 @@ function CoreSection() {
       await restart();
     } catch (e) {
       setMsg({ text: String(e), err: true });
+      // the core was stopped before the failing step: bring it back
+      void restart();
     } finally {
       setBusy(null);
       refreshInfo();
@@ -553,9 +555,14 @@ function TunSection() {
         right={
           <div className="flex gap-4">
             {svc?.installed ? (
-              <Btn danger onClick={() => void svcAction(serviceUninstall)} disabled={svcBusy}>
-                {svcBusy ? t("处理中…") : t("卸载")}
-              </Btn>
+              <>
+                <Btn onClick={() => void svcAction(serviceInstall)} disabled={svcBusy}>
+                  {t("重新指向内核")}
+                </Btn>
+                <Btn danger onClick={() => void svcAction(serviceUninstall)} disabled={svcBusy}>
+                  {svcBusy ? t("处理中…") : t("卸载")}
+                </Btn>
+              </>
             ) : (
               <Btn accent onClick={() => void svcAction(serviceInstall)} disabled={svcBusy}>
                 {svcBusy ? t("等待授权…") : t("安装服务")}
