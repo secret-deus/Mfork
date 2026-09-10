@@ -35,3 +35,9 @@ sysproxy = "0.3"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
+
+[profile.release]
+# smaller shipped binaries on every platform; matters most for the Android APK
+lto = true
+codegen-units = 1
+strip = true

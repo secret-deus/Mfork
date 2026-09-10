@@ -124,7 +124,16 @@ scripts/fetch-core.mjs         # 增加 --android：下載 mihomo-android-arm64 
 
 環境變量只在構建命令前 export：`JAVA_HOME`、`ANDROID_HOME`、`NDK_HOME`。Gradle 不讀 `HTTPS_PROXY`，本機代理寫在 `~/.gradle/gradle.properties` 的 `systemProp.https.proxy*`；`gen/android` 的 `build.gradle.kts` 與 `buildSrc/build.gradle.kts` 在 `google()` 前加了阿里雲鏡像。AGP 8.11 生成的工程 `compileSdk = 36`，所以 platforms 需要 android-36。
 
-構建：`node scripts/fetch-core.mjs --android arm64`（放置 `libmihomo.so`）→ `pnpm tauri android build --debug --apk --target aarch64`；產物在 `src-tauri/gen/android/app/build/outputs/apk/`。
+構建：`node scripts/fetch-core.mjs --android arm64`（放置 `libmihomo.so`）→ `pnpm tauri android build --apk --target aarch64`；產物在 `src-tauri/gen/android/app/build/outputs/apk/arm64/release/`。
+
+Windows 上未開「開發者模式」時，tauri-cli 在 cargo 編譯完成後用符號連結把 `libmfork_lib.so` 放進 jniLibs 會失敗（非管理員不能建符號連結）。繞法：cargo 那一步已經完成，手動複製後直接跑 Gradle 並跳過 rust 任務：
+
+```bash
+cp src-tauri/target/aarch64-linux-android/release/libmfork_lib.so src-tauri/gen/android/app/src/main/jniLibs/arm64-v8a/
+cd src-tauri/gen/android && ./gradlew assembleArm64Release -x rustBuildArm64Release -PtargetList=aarch64 -ParchList=arm64 -PabiList=arm64-v8a
+```
+
+`[profile.release]` 開了 `lto` / `codegen-units = 1` / `strip`，Rust 庫從 29 MB 降到 17.7 MB，APK 28 MB（其中 mihomo 佔大頭）。簽名：`app/build.gradle.kts` 從 `keystore.properties` 讀取（本機在 `%LOCALAPPDATA%\Mfork\`，自簽，可換）。
 
 ## 前端差異
 
