@@ -434,7 +434,9 @@ pub fn inject_managed(
         format!("127.0.0.1:{api_port}").into(),
     );
     doc.insert("secret".into(), secret.into());
-    doc.insert("find-process-mode".into(), "always".into());
+    // Android has no process table access for an unprivileged app
+    let fpm = if cfg!(target_os = "android") { "off" } else { "always" };
+    doc.insert("find-process-mode".into(), fpm.into());
 
     // GUI-managed TUN / DNS (settings page); the raw profile's tun block is
     // always stripped above, its dns block survives unless the user opts in

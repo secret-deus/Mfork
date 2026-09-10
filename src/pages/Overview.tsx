@@ -260,7 +260,7 @@ export default function Overview() {
   };
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden px-14 pb-10 pt-13">
+    <div className="relative flex h-full flex-col overflow-hidden px-5 md:px-14 pb-10 pt-6 md:pt-13">
       {/* globe on the right; drag to rotate, it drifts back home when released */}
       <div className="absolute top-1/2 right-[6vh] h-[72vh] w-[72vh] -translate-y-1/2 select-none">
         <Globe self={self.pos} nodes={globe.nodes} routes={routes} active={phase === "running"} />

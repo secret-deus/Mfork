@@ -18,7 +18,7 @@ pub fn core_running(_app: &AppHandle) -> bool {
     false
 }
 
-pub fn start_core(_app: &AppHandle, _config: &str, _dir: &str) -> Result<u32, String> {
+pub fn start_core(_app: &AppHandle, _config: &str, _dir: &str) -> Result<(u32, Option<String>), String> {
     Err(NOT_HERE.into())
 }
 

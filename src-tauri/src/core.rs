@@ -54,9 +54,43 @@ pub fn core_binary(app: &AppHandle) -> Result<PathBuf, String> {
     bundled_binary(app)
 }
 
+/// Android 10+ only executes files inside the app's nativeLibraryDir, so
+/// the core ships as `libmihomo.so` in jniLibs (docs/ANDROID.md). Our own
+/// Rust library is loaded from that same directory: ask the dynamic
+/// linker where it came from and look next to it.
+#[cfg(target_os = "android")]
+fn native_lib_dir() -> Result<PathBuf, String> {
+    use std::ffi::CStr;
+    let mut info: libc::Dl_info = unsafe { std::mem::zeroed() };
+    let probe = native_lib_dir as *const () as *const libc::c_void;
+    let ok = unsafe { libc::dladdr(probe, &mut info) };
+    if ok == 0 || info.dli_fname.is_null() {
+        return Err("dladdr: cannot locate our own library".into());
+    }
+    let me = unsafe { CStr::from_ptr(info.dli_fname) }.to_string_lossy().to_string();
+    PathBuf::from(&me)
+        .parent()
+        .map(|p| p.to_path_buf())
+        .ok_or_else(|| format!("no parent dir for {me}"))
+}
+
 /// Locate the bundled mihomo binary: bundle resources first, then the
 /// source tree (dev builds where resources are not yet copied).
 pub fn bundled_binary(app: &AppHandle) -> Result<PathBuf, String> {
+    #[cfg(target_os = "android")]
+    {
+        let _ = app;
+        let p = native_lib_dir()?.join("libmihomo.so");
+        return if p.exists() {
+            Ok(p)
+        } else {
+            Err(format!(
+                "libmihomo.so not packaged ({}) — run `node scripts/fetch-core.mjs --android` before building",
+                p.display()
+            ))
+        };
+    }
+    #[allow(unreachable_code)]
     if let Ok(dir) = app.path().resource_dir() {
         let p = dir.join("resources").join("mihomo").join(CORE_BIN);
         if p.exists() {

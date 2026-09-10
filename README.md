@@ -39,6 +39,17 @@ TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/mfork.key)" TAURI_SIGNING_PRIVATE_KEY_
 ```
 推送 `v*` tag 或手動觸發 GitHub Actions 可產出 Windows/macOS(x64+arm64)/Linux 全平台安裝包。
 
+### Android（實驗中，見 `docs/ANDROID.md`）
+
+同一份 React 界面與 Rust 業務邏輯，加 Kotlin 側 VpnService（開發中）。目前的 APK：界面完整、內核在手機上以子進程運行、經 Wi-Fi 手動代理使用；VPN 一鍵接管尚未完成。
+
+```bash
+# 需要 JDK 17、Android SDK（platforms 35/36、build-tools 35）、NDK r27，並 export JAVA_HOME / ANDROID_HOME / NDK_HOME
+node scripts/fetch-core.mjs --android arm64      # 放置 gen/android/.../jniLibs/arm64-v8a/libmihomo.so
+pnpm tauri android build --debug --apk --target aarch64
+# 產物：src-tauri/gen/android/app/build/outputs/apk/
+```
+
 ### macOS 簽名與公證
 
 CI 在以下 GitHub secrets 存在時自動對 .app/.dmg 簽名並公證，缺省則產出未簽名包（首次打開需右鍵「打開」或 `xattr -cr Mfork.app`）：

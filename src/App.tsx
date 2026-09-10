@@ -86,19 +86,20 @@ export default function App() {
   }, []);
 
   return (
-    <div className="relative flex h-full">
+    <div className="relative flex h-full flex-col-reverse md:flex-row">
       {/* frameless window: the top strip (and the sidebar background) drags the window */}
-      <div data-tauri-drag-region className="absolute inset-x-0 top-0 z-20 h-8" />
+      {IS_DESKTOP ? <div data-tauri-drag-region className="absolute inset-x-0 top-0 z-20 h-8" /> : null}
       {IS_DESKTOP && !IS_MAC ? (
         <div className="absolute top-0 right-0 z-30">
           <WindowControls />
         </div>
       ) : null}
+      {/* sidebar on desktop, bottom bar on phones */}
       <aside
         data-tauri-drag-region
-        className={`z-10 flex w-16 shrink-0 flex-col items-center gap-1 border-r border-line-soft ${IS_MAC ? "pt-9 pb-3.5" : "py-3.5"}`}
+        className={`z-10 flex w-full shrink-0 flex-row items-center justify-around border-t border-line-soft py-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] md:h-full md:w-16 md:flex-col md:justify-start md:gap-1 md:border-t-0 md:border-r md:pb-3.5 ${IS_MAC ? "md:pt-9" : "md:pt-3.5"}`}
       >
-        <div className="mb-4 flex h-[30px] w-[30px] items-center justify-center rounded-[9px] bg-logo-bg text-logo-fg">
+        <div className="mb-4 hidden h-[30px] w-[30px] items-center justify-center rounded-[9px] bg-logo-bg text-logo-fg md:flex">
           <ForkLogo />
         </div>
         {NAV.map((item) => (
@@ -115,15 +116,15 @@ export default function App() {
             <item.icon />
           </button>
         ))}
-        <div className="flex-1" />
+        <div className="hidden flex-1 md:block" />
         <span
-          className={`block h-[7px] w-[7px] rounded-full ${
+          className={`hidden h-[7px] w-[7px] rounded-full md:block ${
             phase === "running" ? "bg-ok" : phase === "error" ? "bg-err" : "bg-dim"
           }`}
           title={phase === "running" ? t("内核运行中") : t("内核未运行")}
         />
       </aside>
-      <main className="min-w-0 flex-1">
+      <main className="min-h-0 min-w-0 flex-1">
         {page === "overview" ? (
           <Overview />
         ) : page === "proxies" ? (

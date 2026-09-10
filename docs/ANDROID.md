@@ -114,7 +114,17 @@ scripts/fetch-core.mjs         # 增加 --android：下載 mihomo-android-arm64 
 
 構建命令：`pnpm tauri android init`（一次）、`pnpm tauri android dev`（連真機 / 模擬器）、`pnpm tauri android build --target aarch64`（產出 APK / AAB）。CI 加一個 `ubuntu` job 裝 SDK/NDK 打 APK。
 
-工具鏈（Windows 開發機）：Android Studio 附帶 JDK 17（`JAVA_HOME` 指向其 `jbr`）、SDK Platform 35、Build-Tools、Platform-Tools、Command-line Tools、NDK (side by side) r27；環境變量 `ANDROID_HOME`、`NDK_HOME`；`rustup target add aarch64-linux-android`（模擬器再加 `x86_64-linux-android`）。
+工具鏈（Windows 開發機，2026-09-11 實際裝法，全部在用戶目錄、不動系統設置）：
+
+| 組件 | 位置 | 來源 |
+|---|---|---|
+| JDK 17 (Temurin 17.0.20.1) | `%LOCALAPPDATA%\Programs\jdk-17` | adoptium.net |
+| platform-tools r37、platforms android-35/36、build-tools 35.0.0、NDK 27.2.12479018 (r27c) | `%LOCALAPPDATA%\Android\Sdk` | 騰訊鏡像 `mirrors.cloud.tencent.com/AndroidSDK`，zip 手動鋪目錄（dl.google.com 在本機 TLS 握手失敗，sdkmanager 用不了）；`licenses/` 手寫 |
+| Rust targets | `rustup target add aarch64-linux-android`（`tauri android init` 又補了 armv7 / i686 / x86_64） | |
+
+環境變量只在構建命令前 export：`JAVA_HOME`、`ANDROID_HOME`、`NDK_HOME`。Gradle 不讀 `HTTPS_PROXY`，本機代理寫在 `~/.gradle/gradle.properties` 的 `systemProp.https.proxy*`；`gen/android` 的 `build.gradle.kts` 與 `buildSrc/build.gradle.kts` 在 `google()` 前加了阿里雲鏡像。AGP 8.11 生成的工程 `compileSdk = 36`，所以 platforms 需要 android-36。
+
+構建：`node scripts/fetch-core.mjs --android arm64`（放置 `libmihomo.so`）→ `pnpm tauri android build --debug --apk --target aarch64`；產物在 `src-tauri/gen/android/app/build/outputs/apk/`。
 
 ## 前端差異
 
@@ -130,7 +140,7 @@ scripts/fetch-core.mjs         # 增加 --android：下載 mihomo-android-arm64 
 | 階段 | 內容 | 驗收 |
 |---|---|---|
 | **M0 基礎** | 桌面專屬代碼按 `cfg(desktop)` 隔離、reqwest 切 rustls、capabilities 分平台、`platform.ts`；`cargo check --target aarch64-linux-android` 通過 | 桌面構建與測試不變；Android target 可 check |
-| **M1 殼** | `tauri android init`、Gradle 工程提交、jniLibs 打包 mihomo、界面響應式改造 | 真機裝上 APK，界面可用，內核未接入 |
+| **M1 殼** | `tauri android init`、Gradle 工程提交、jniLibs 打包 mihomo、界面響應式改造（第一版：底部導航、單列設置、窄屏內距） | 真機裝上 APK，界面可用；內核以子進程從 nativeLibraryDir 啟動，混合端口可用（Wi-Fi 手動代理），TUN 待 M2 |
 | **M2 VPN** | `mfork-vpn` 插件（prepare / establish / stop / revoked）、Rust 側 fd 傳遞與 tun 配置、前台通知 | 真機開關連線，瀏覽器流量按規則分流，`onRevoke` 收尾正確 |
 | **M3 打磨** | 通知速率、電池優化引導、Android 13 通知權限、訂閱 / 覆寫 / 備份在手機上驗證、IPv6 開關 | 一天日常使用不掉線 |
 | **M4 發佈** | CI 出 APK、簽名、版本號與桌面對齊、README | tag 觸發產出 arm64 APK |

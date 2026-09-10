@@ -51,7 +51,7 @@ export default function Rules() {
     : rules;
 
   return (
-    <div className="flex h-full min-w-0 flex-col px-14 pb-6 pt-13">
+    <div className="flex h-full min-w-0 flex-col px-5 md:px-14 pb-6 pt-6 md:pt-13">
       <div className="flex items-center justify-between">
         <div className="flex items-baseline gap-5">
           <div className="cap">{t("Mfork · 规则 Rules")}</div>

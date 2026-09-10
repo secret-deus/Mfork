@@ -106,7 +106,7 @@ export default function Proxies() {
   };
 
   return (
-    <div className="flex h-full min-w-0 flex-col px-14 pb-8 pt-13">
+    <div className="flex h-full min-w-0 flex-col px-5 md:px-14 pb-8 pt-6 md:pt-13">
       <div className="flex items-center justify-between">
         <div className="cap">{t("Mfork · 代理 Proxies")}</div>
         <div className="flex items-center gap-5">

@@ -429,6 +429,13 @@ function NetworkSection() {
           </div>
         }
       />
+      {!IS_DESKTOP ? (
+        <Row
+          label={t("在手机上使用")}
+          sub={t("Wi-Fi 详情 → 代理 → 手动，主机 127.0.0.1，端口填上方混合端口")}
+          right={<Val>{api ? `127.0.0.1:${api.mixed_port}` : "—"}</Val>}
+        />
+      ) : null}
       <Row
         label={t("外部控制 API")}
         right={<Val>{api ? `127.0.0.1:${api.port}` : "—"}</Val>}
@@ -579,9 +586,11 @@ function TunSection() {
       <Row
         label={t("启用 TUN")}
         sub={
-          svc?.reachable
-            ? t("虚拟网卡接管全局流量；与其他代理客户端的 TUN/系统代理互斥")
-            : t("需先安装系统服务")
+          !IS_DESKTOP
+            ? t("VPN 接管即将推出；目前请在 Wi-Fi 设置中把代理指向 127.0.0.1 与上方端口")
+            : svc?.reachable
+              ? t("虚拟网卡接管全局流量；与其他代理客户端的 TUN/系统代理互斥")
+              : t("需先安装系统服务")
         }
         right={
           <Toggle
@@ -589,7 +598,7 @@ function TunSection() {
             onChange={(v) => {
               if (tun) void applyAndRestart({ tun: { ...tun, enable: v } });
             }}
-            disabled={!tun || (IS_DESKTOP && !svc?.reachable && !tun.enable)}
+            disabled={!tun || (IS_DESKTOP ? !svc?.reachable && !tun.enable : true)}
           />
         }
       />
@@ -1037,9 +1046,9 @@ export default function Settings() {
   return (
     <div className="flex h-full min-w-0 flex-col pt-8">
       {/* the scroll area sits under the drag strip so the scrollbar never runs into the window buttons */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-14 pt-5 pb-10">
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 md:px-14 pt-5 pb-10">
         <div className="cap">{t("Mfork · 设置 Settings")}</div>
-        <div className="mt-8 grid grid-cols-2 content-start gap-x-20 gap-y-10">
+        <div className="mt-8 grid grid-cols-1 content-start gap-x-20 gap-y-10 md:grid-cols-2">
           <CoreSection />
           <NetworkSection />
           {IS_DESKTOP ? <SystemSection /> : null}
