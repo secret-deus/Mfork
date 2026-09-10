@@ -71,7 +71,11 @@ pub fn build_archive(app: &AppHandle) -> Result<Vec<u8>, String> {
         let opts =
             SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
         zw.start_file("app-config.json", opts).map_err(|e| e.to_string())?;
-        zw.write_all(&std::fs::read(&cfg).map_err(|e| e.to_string())?)
+        // never ship the WebDAV credentials inside the archive: a restore
+        // keeps the local ones anyway (see restore_archive)
+        let mut s = crate::settings::load(app);
+        s.webdav = crate::settings::WebdavSettings::default();
+        zw.write_all(serde_json::to_string_pretty(&s).unwrap().as_bytes())
             .map_err(|e| e.to_string())?;
     }
     let cursor = zw.finish().map_err(|e| e.to_string())?;
@@ -102,7 +106,7 @@ pub fn restore_archive(app: &AppHandle, bytes: &[u8]) -> Result<(), String> {
         }
         let mut data = Vec::with_capacity(f.size() as usize);
         f.read_to_end(&mut data).map_err(|e| e.to_string())?;
-        std::fs::write(&dest, data).map_err(|e| e.to_string())?;
+        crate::settings::write_atomic(&dest, &data)?;
     }
     if !has_any {
         return Err("备份文件中没有 Mfork 数据".into());
@@ -302,4 +306,30 @@ pub fn webdav_delete(app: AppHandle, name: String) -> Result<(), String> {
         return Err(format!("删除失败: HTTP {}", resp.status()));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn percent_decode_handles_utf8_and_junk() {
+        assert_eq!(percent_decode("mfork-%E5%A4%87%E4%BB%BD.zip"), "mfork-备份.zip");
+        assert_eq!(percent_decode("a%2Gb%"), "a%2Gb%");
+    }
+
+    #[test]
+    fn propfind_lists_zip_entries_newest_first() {
+        let body = r#"<D:multistatus>
+<D:response><D:href>/dav/Mfork/</D:href><D:propstat><D:prop><D:getcontentlength>0</D:getcontentlength></D:prop></D:propstat></D:response>
+<D:response><D:href>/dav/Mfork/mfork-20240101-000000.zip</D:href><D:propstat><D:prop><D:getcontentlength>10</D:getcontentlength><D:getlastmodified>Mon, 01 Jan 2024 00:00:00 GMT</D:getlastmodified></D:prop></D:propstat></D:response>
+<D:response><D:href>/dav/Mfork/mfork-20240202-000000.zip</D:href><D:propstat><D:prop><D:getcontentlength>20</D:getcontentlength></D:prop></D:propstat></D:response>
+<D:response><D:href>/dav/Mfork/notes.txt</D:href></D:response>
+</D:multistatus>"#;
+        let list = parse_propfind(body);
+        assert_eq!(list.len(), 2);
+        assert_eq!(list[0].name, "mfork-20240202-000000.zip");
+        assert_eq!(list[0].size, 20);
+        assert_eq!(list[1].modified, "Mon, 01 Jan 2024 00:00:00 GMT");
+    }
 }

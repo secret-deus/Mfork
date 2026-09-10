@@ -1,7 +1,24 @@
 //! GUI app settings persisted in app-config.json.
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager};
+use std::path::Path;
+use tauri::{AppHandle, Emitter, Manager};
+
+/// Write `data` to `path` via a temp file + rename so a crash mid-write
+/// never leaves a truncated file behind (rename replaces on every OS).
+pub fn write_atomic(path: &Path, data: &[u8]) -> Result<(), String> {
+    let mut name = path
+        .file_name()
+        .map(|n| n.to_os_string())
+        .unwrap_or_default();
+    name.push(".tmp");
+    let tmp = path.with_file_name(name);
+    std::fs::write(&tmp, data).map_err(|e| format!("write {}: {e}", tmp.display()))?;
+    std::fs::rename(&tmp, path).map_err(|e| {
+        let _ = std::fs::remove_file(&tmp);
+        format!("replace {}: {e}", path.display())
+    })
+}
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -61,8 +78,11 @@ pub struct WebdavSettings {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AppSettings {
-    /// fixed mixed port; 0 = pick a free port on every start
+    /// fixed mixed port; 0 = automatic (reuse `last_mixed_port` when it is
+    /// still free, otherwise pick a free one)
     pub mixed_port: u16,
+    /// the port the last automatic start used; not user-facing
+    pub last_mixed_port: u16,
     pub allow_lan: bool,
     pub ipv6: bool,
     pub system_proxy: bool,
@@ -91,6 +111,7 @@ impl Default for AppSettings {
     fn default() -> Self {
         Self {
             mixed_port: 0,
+            last_mixed_port: 0,
             allow_lan: false,
             ipv6: false,
             system_proxy: false,
@@ -110,12 +131,33 @@ fn path(app: &AppHandle) -> Option<std::path::PathBuf> {
     app.path().app_data_dir().ok().map(|d| d.join("app-config.json"))
 }
 
+/// Load app-config.json. A file that exists but does not parse is moved
+/// aside (never silently overwritten) and the frontend is told via the
+/// `settings-corrupt` event; defaults are used from then on.
 pub fn load(app: &AppHandle) -> AppSettings {
-    path(app)
-        .filter(|p| p.exists())
-        .and_then(|p| std::fs::read_to_string(p).ok())
-        .and_then(|s| serde_json::from_str(s.trim_start_matches('\u{feff}')).ok())
-        .unwrap_or_default()
+    let Some(p) = path(app).filter(|p| p.exists()) else {
+        return AppSettings::default();
+    };
+    let Ok(text) = std::fs::read_to_string(&p) else {
+        return AppSettings::default();
+    };
+    match serde_json::from_str(text.trim_start_matches('\u{feff}')) {
+        Ok(s) => s,
+        Err(e) => {
+            let stamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            let aside = p.with_file_name(format!("app-config.corrupt-{stamp}.json"));
+            let _ = std::fs::rename(&p, &aside);
+            let name = aside
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default();
+            let _ = app.emit("settings-corrupt", format!("{e} ({name})"));
+            AppSettings::default()
+        }
+    }
 }
 
 pub fn save(app: &AppHandle, s: &AppSettings) -> Result<(), String> {
@@ -123,7 +165,7 @@ pub fn save(app: &AppHandle, s: &AppSettings) -> Result<(), String> {
     if let Some(dir) = p.parent() {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
-    std::fs::write(p, serde_json::to_string_pretty(s).unwrap()).map_err(|e| e.to_string())
+    write_atomic(&p, serde_json::to_string_pretty(s).unwrap().as_bytes())
 }
 
 #[tauri::command]
@@ -134,8 +176,10 @@ pub fn settings_get(app: AppHandle) -> AppSettings {
 /// Persist settings; re-apply the OS proxy so a changed bypass list (or a
 /// toggled system_proxy flag) takes effect immediately.
 #[tauri::command]
-pub fn settings_set(app: AppHandle, settings: AppSettings) -> Result<(), String> {
+pub fn settings_set(app: AppHandle, mut settings: AppSettings) -> Result<(), String> {
     let before = load(&app);
+    // backend-owned: the frontend's copy may predate the last core start
+    settings.last_mixed_port = before.last_mixed_port;
     save(&app, &settings)?;
     let r = crate::system::sync_system_proxy(&app);
     if before.locale != settings.locale {

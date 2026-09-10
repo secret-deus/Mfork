@@ -110,14 +110,27 @@ pub fn core_start(app: AppHandle, state: State<'_, CoreState>) -> Result<ApiInfo
     let bin = core_binary(&app)?;
     let dir = data_dir(&app)?;
     let api_port = free_port()?;
-    let fixed = crate::settings::load(&app).mixed_port;
-    let mixed_port = if fixed > 0 {
+    let mut settings = crate::settings::load(&app);
+    let mixed_port = if settings.mixed_port > 0 {
+        let fixed = settings.mixed_port;
         if TcpListener::bind(("127.0.0.1", fixed)).is_err() {
             return Err(format!("端口 {fixed} 已被占用，请在设置中更换混合端口"));
         }
         fixed
     } else {
-        free_port()?
+        // automatic: keep the port from last time so tools that do not read
+        // the OS proxy (CLIs, containers, IDEs) keep working across restarts
+        let last = settings.last_mixed_port;
+        let port = if last > 0 && TcpListener::bind(("127.0.0.1", last)).is_ok() {
+            last
+        } else {
+            free_port()?
+        };
+        if port != last {
+            settings.last_mixed_port = port;
+            let _ = crate::settings::save(&app, &settings);
+        }
+        port
     };
     let secret = random_secret();
 
@@ -198,7 +211,7 @@ pub fn core_start(app: AppHandle, state: State<'_, CoreState>) -> Result<ApiInfo
     };
     *state.api.lock().unwrap() = Some(info.clone());
 
-    // the mixed port changes on every start: re-point the OS proxy at it
+    // the mixed port may have changed: re-point the OS proxy at it
     if let Err(e) = crate::system::sync_system_proxy(&app) {
         let _ = app.emit("sys-proxy-error", e);
     }
