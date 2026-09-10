@@ -28,3 +28,6 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 flate2 = "1"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

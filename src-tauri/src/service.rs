@@ -54,8 +54,9 @@ fn service_exe(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 /// Directory holding service.token / core-path.txt. Windows: next to the
-/// bundled exe (the installer runs it in place). Unix: the root-owned dir
-/// the installer copies the daemon into.
+/// bundled exe (the installer runs it in place; the app is installed
+/// per-machine so the directory is admin-writable only). Unix: the
+/// root-owned dir the installer copies the daemon into.
 fn token_dir(app: &AppHandle) -> Option<PathBuf> {
     if cfg!(windows) {
         service_exe(app).ok()?.parent().map(|p| p.to_path_buf())
@@ -140,12 +141,26 @@ pub fn installed(app: &AppHandle) -> bool {
     ping(app) || service_registered()
 }
 
+/// Arguments for `mfork-service install <core>`: on Unix the installer is
+/// told our uid so the token file can be owned by us with mode 0600.
+#[allow(unused_mut)]
+fn install_args(core: &str) -> Vec<String> {
+    let mut v = vec!["install".to_string(), core.to_string()];
+    #[cfg(unix)]
+    {
+        v.push("--owner".into());
+        v.push(unsafe { libc::getuid() }.to_string());
+    }
+    v
+}
+
 /// Point an installed service at a different core binary (re-runs the
-/// installer elevated, which rewrites core-path.txt + token and restarts
-/// the service).
+/// installer elevated, which copies + pins the core, rewrites the token and
+/// restarts the service).
 pub fn repin(app: &AppHandle, core: &PathBuf) -> Result<(), String> {
     let svc = service_exe(app)?;
-    run_elevated(&svc, &["install", &core.to_string_lossy()])?;
+    let args = install_args(&core.to_string_lossy());
+    run_elevated(&svc, &args.iter().map(String::as_str).collect::<Vec<_>>())?;
     for _ in 0..10 {
         if ping(app) {
             return Ok(());
@@ -182,7 +197,8 @@ fn service_registered() -> bool {
 pub fn service_install(app: AppHandle) -> Result<(), String> {
     let svc = service_exe(&app)?;
     let core = crate::core::core_binary(&app)?;
-    run_elevated(&svc, &["install", &core.to_string_lossy()])?;
+    let args = install_args(&core.to_string_lossy());
+    run_elevated(&svc, &args.iter().map(String::as_str).collect::<Vec<_>>())?;
     // give the freshly started service a moment to open its port
     for _ in 0..10 {
         if ping(&app) {

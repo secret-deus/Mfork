@@ -10,12 +10,15 @@
 //!   macOS   — launchd daemon in /Library/LaunchDaemons (`unix` module)
 //!   Linux   — systemd unit in /etc/systemd/system (`unix` module)
 //!
-//! Security model: the core binary path is pinned at install time (stored
-//! next to the service binary, admin-writable only). Requests can only
-//! choose the config file and data dir, never the executable.
+//! Security model: at install time the core binary is *copied* into the
+//! service's own directory (admin/root-writable only) and that copy is
+//! pinned; the service never executes anything from a user-writable path.
+//! Requests can only choose the config file and data dir, never the
+//! executable. On Unix the token file is owned by the installing user with
+//! mode 0600 so other local users cannot drive the daemon.
 //!
 //! Subcommands (run elevated):
-//!   mfork-service install <core-exe-path>
+//!   mfork-service install <core-exe-path> [--owner <uid>]
 //!   mfork-service uninstall
 //!   mfork-service serve            (foreground; what launchd/systemd run)
 //! No args on Windows: service entry, invoked by the SCM.
@@ -63,6 +66,61 @@ fn token_path() -> PathBuf {
 
 fn core_path_file() -> PathBuf {
     exe_dir().join("core-path.txt")
+}
+
+/// Copy the core binary (and, on Windows, wintun.dll beside it) into
+/// `<dir>/core/` and return the path of the copy. The copy is what gets
+/// pinned, so replacing the user-writable original does nothing.
+fn pin_core(dir: &std::path::Path, core_exe: &str) -> Result<PathBuf, String> {
+    let src = PathBuf::from(core_exe);
+    if !src.is_file() {
+        return Err(format!("core binary not found: {core_exe}"));
+    }
+    let name = src
+        .file_name()
+        .ok_or_else(|| format!("bad core path: {core_exe}"))?
+        .to_os_string();
+    let core_dir = dir.join("core");
+    std::fs::create_dir_all(&core_dir).map_err(|e| format!("create {}: {e}", core_dir.display()))?;
+    let dest = core_dir.join(&name);
+    // write to a temp name then rename so a half-written copy is never pinned
+    let tmp = core_dir.join(format!("{}.new", name.to_string_lossy()));
+    std::fs::copy(&src, &tmp).map_err(|e| format!("copy core: {e}"))?;
+    if dest.exists() {
+        let _ = std::fs::remove_file(&dest);
+    }
+    std::fs::rename(&tmp, &dest).map_err(|e| format!("install core: {e}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o755))
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(windows)]
+    {
+        if let Some(dll) = src.parent().map(|p| p.join("wintun.dll")) {
+            if dll.is_file() {
+                let _ = std::fs::copy(&dll, core_dir.join("wintun.dll"));
+            }
+        }
+    }
+    Ok(dest)
+}
+
+fn new_token() -> String {
+    (0..32)
+        .map(|_| char::from_digit(fastrand::u32(0..16), 16).unwrap())
+        .collect()
+}
+
+/// `--owner <uid>` from the install arguments.
+#[cfg(unix)]
+fn owner_arg() -> Option<u32> {
+    let args: Vec<String> = std::env::args().collect();
+    args.iter()
+        .position(|a| a == "--owner")
+        .and_then(|i| args.get(i + 1))
+        .and_then(|v| v.parse().ok())
 }
 
 static CHILD: Mutex<Option<Child>> = Mutex::new(None);
@@ -132,8 +190,18 @@ fn handle(req: &Req, token: &str, core_bin: &str) -> Resp {
 
 /// JSON-line server loop; exits when STOPPING is set.
 fn serve() {
+    // no token = no authentication: refuse to serve rather than accept
+    // requests carrying an empty token
     let token = std::fs::read_to_string(token_path()).unwrap_or_default().trim().to_string();
+    if token.is_empty() {
+        eprintln!("service.token missing or empty: run `mfork-service install` first");
+        return;
+    }
     let core_bin = std::fs::read_to_string(core_path_file()).unwrap_or_default().trim().to_string();
+    if core_bin.is_empty() {
+        eprintln!("core-path.txt missing: run `mfork-service install` first");
+        return;
+    }
     let listener = match TcpListener::bind(("127.0.0.1", PORT)) {
         Ok(l) => l,
         Err(_) => return,
@@ -215,16 +283,12 @@ mod win {
     }
 
     pub fn install(core_exe: &str) -> Result<(), String> {
-        let core = PathBuf::from(core_exe);
-        if !core.exists() {
-            return Err(format!("core binary not found: {core_exe}"));
-        }
-        // pin the core path and mint a fresh token (dir is admin-writable)
-        std::fs::write(core_path_file(), core_exe).map_err(|e| format!("write core path: {e}"))?;
-        let token: String = (0..32)
-            .map(|_| char::from_digit(fastrand::u32(0..16), 16).unwrap())
-            .collect();
-        std::fs::write(token_path(), &token).map_err(|e| format!("write token: {e}"))?;
+        // copy the core next to us (the app is installed per-machine, so
+        // this directory is admin-writable only), pin the copy, mint a token
+        let pinned = pin_core(&exe_dir(), core_exe)?;
+        std::fs::write(core_path_file(), pinned.to_string_lossy().as_bytes())
+            .map_err(|e| format!("write core path: {e}"))?;
+        std::fs::write(token_path(), new_token()).map_err(|e| format!("write token: {e}"))?;
 
         let manager = ServiceManager::local_computer(None::<&str>, ServiceManagerAccess::CREATE_SERVICE)
             .map_err(|e| format!("open SCM (需要管理员权限): {e}"))?;
@@ -315,8 +379,8 @@ fn main() {
 mod unix {
     use super::*;
 
-    /// Where the daemon binary, token and pinned core path live
-    /// (root-owned, world-readable so the GUI can read the token).
+    /// Where the daemon binary, pinned core copy, token and core path live
+    /// (root-owned; the token is owned by the installing user, mode 0600).
     pub fn install_dir() -> PathBuf {
         if cfg!(target_os = "macos") {
             PathBuf::from("/Library/Application Support/Mfork")
@@ -360,10 +424,6 @@ mod unix {
 
     pub fn install(core_exe: &str) -> Result<(), String> {
         use std::os::unix::fs::PermissionsExt;
-        let core = PathBuf::from(core_exe);
-        if !core.exists() {
-            return Err(format!("core binary not found: {core_exe}"));
-        }
         let dir = install_dir();
         std::fs::create_dir_all(&dir).map_err(|e| format!("create {}: {e}", dir.display()))?;
         std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755))
@@ -381,12 +441,16 @@ mod unix {
         std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o755))
             .map_err(|e| e.to_string())?;
 
-        // pin the core path and mint a fresh token
-        write_mode(&dir.join("core-path.txt"), core_exe, 0o644)?;
-        let token: String = (0..32)
-            .map(|_| char::from_digit(fastrand::u32(0..16), 16).unwrap())
-            .collect();
-        write_mode(&dir.join("service.token"), &token, 0o644)?;
+        // copy the core into the root-owned dir and pin the copy
+        let pinned = pin_core(&dir, core_exe)?;
+        write_mode(&dir.join("core-path.txt"), &pinned.to_string_lossy(), 0o644)?;
+        // token: readable by root (us) and the installing user only
+        let token_file = dir.join("service.token");
+        write_mode(&token_file, &new_token(), 0o600)?;
+        if let Some(uid) = owner_arg() {
+            std::os::unix::fs::chown(&token_file, Some(uid), None)
+                .map_err(|e| format!("chown token: {e}"))?;
+        }
 
         let exe = target.to_string_lossy().to_string();
         if cfg!(target_os = "macos") {
