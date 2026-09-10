@@ -2,35 +2,65 @@ mod backup;
 mod core;
 mod override_;
 mod profile;
-mod service;
 mod settings;
-mod system;
-mod tray;
 mod updater;
+
+// Desktop integrations (elevated service, OS proxy + autostart, tray) have
+// inert mobile stand-ins so the shared modules compile unchanged; see
+// docs/ANDROID.md.
+#[cfg(desktop)]
+mod service;
+#[cfg(mobile)]
+#[path = "service_stub.rs"]
+mod service;
+#[cfg(desktop)]
+mod system;
+#[cfg(mobile)]
+#[path = "system_stub.rs"]
+mod system;
+#[cfg(desktop)]
+mod tray;
+#[cfg(mobile)]
+#[path = "tray_stub.rs"]
+mod tray;
 
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            tray::show_window(app);
-        }))
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_autostart::init(
-            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            None,
-        ))
+    let mut builder = tauri::Builder::default().plugin(tauri_plugin_dialog::init());
+    #[cfg(desktop)]
+    {
+        builder = builder
+            .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+                tray::show_window(app);
+            }))
+            .plugin(tauri_plugin_updater::Builder::new().build())
+            .plugin(tauri_plugin_process::init())
+            .plugin(tauri_plugin_autostart::init(
+                tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+                None,
+            ))
+            .manage(tray::TrayState::default())
+            .on_window_event(|window, event| {
+                // closing the main window hides to tray; quit lives in the tray menu
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            });
+    }
+    builder
         .manage(core::CoreState::default())
-        .manage(tray::TrayState::default())
         .setup(|app| {
-            tray::create_tray(app.handle())?;
-            // the window is created hidden; silent start keeps it in the tray
-            if !settings::load(app.handle()).silent_start {
-                if let Some(w) = app.get_webview_window("main") {
-                    let _ = w.show();
+            #[cfg(desktop)]
+            {
+                tray::create_tray(app.handle())?;
+                // the window is created hidden; silent start keeps it in the tray
+                if !settings::load(app.handle()).silent_start {
+                    if let Some(w) = app.get_webview_window("main") {
+                        let _ = w.show();
+                    }
                 }
             }
             let handle = app.handle().clone();
@@ -39,13 +69,6 @@ pub fn run() {
                 profile::auto_update_tick(&handle);
             });
             Ok(())
-        })
-        .on_window_event(|window, event| {
-            // closing the main window hides to tray; quit lives in the tray menu
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                api.prevent_close();
-                let _ = window.hide();
-            }
         })
         .invoke_handler(tauri::generate_handler![
             core::core_start,

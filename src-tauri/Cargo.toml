@@ -13,21 +13,25 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri = { version = "2", features = ["image-png"] }
 tauri-plugin-dialog = "2"
-tauri-plugin-single-instance = "2"
-tauri-plugin-autostart = "2"
-sysproxy = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
 fastrand = "2"
-reqwest = { version = "0.12", features = ["blocking", "gzip", "json"] }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "gzip", "json", "rustls-tls", "charset", "http2"] }
 boa_engine = "0.20"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 flate2 = "1"
+
+# desktop only: tray, OS proxy, launch-at-login, single instance, updater
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-autostart = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+sysproxy = "0.3"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useApp } from "./store";
 import { useT } from "./i18n";
+import { IS_DESKTOP, IS_MAC } from "./lib/platform";
 import Overview from "./pages/Overview";
 import Proxies from "./pages/Proxies";
 import Profiles from "./pages/Profiles";
@@ -21,8 +22,6 @@ import {
   IconRules,
   IconSettings,
 } from "./components/icons";
-
-const IS_MAC = /Mac|iPhone|iPad/.test(navigator.userAgent);
 
 /** Global toast: operation failures from any page land here (store.notify). */
 function Toast() {
@@ -90,7 +89,7 @@ export default function App() {
     <div className="relative flex h-full">
       {/* frameless window: the top strip (and the sidebar background) drags the window */}
       <div data-tauri-drag-region className="absolute inset-x-0 top-0 z-20 h-8" />
-      {!IS_MAC ? (
+      {IS_DESKTOP && !IS_MAC ? (
         <div className="absolute top-0 right-0 z-30">
           <WindowControls />
         </div>

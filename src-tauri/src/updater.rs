@@ -228,6 +228,11 @@ pub fn core_upgrade(
     state: State<'_, CoreState>,
     channel: String,
 ) -> Result<UpgradeResult, String> {
+    // Android 10+ only executes files under nativeLibraryDir: the core
+    // ships with the app and is upgraded with it (docs/ANDROID.md)
+    if cfg!(mobile) {
+        return Err("此平台的内核随应用一起更新".into());
+    }
     let (rel, via_core) = fetch_release(&app, &channel)?;
     let client = client(&app, Duration::from_secs(600), via_core)?;
     let mut resp = client

@@ -32,6 +32,7 @@ import {
 } from "../lib/core";
 import { LOCALES, useT } from "../i18n";
 import { THEMES } from "../theme";
+import { IS_DESKTOP } from "../lib/platform";
 
 // ---------------------------------------------------------------- atoms
 
@@ -326,6 +327,8 @@ function CoreSection() {
           </div>
         }
       />
+      {IS_DESKTOP ? (
+        <>
       <Row
         label={t("版本通道")}
         sub={t("Alpha 为每日构建，功能最新但可能不稳定")}
@@ -379,6 +382,8 @@ function CoreSection() {
           </div>
         }
       />
+        </>
+      ) : null}
       <Row
         label={t("GeoData 更新")}
         sub={t("GeoIP / GeoSite / MMDB · 需要内核运行")}
@@ -542,7 +547,7 @@ function TunSection() {
   const tun = settings?.tun;
   return (
     <Sect title={t("TUN 模式")}>
-      <Row
+      {IS_DESKTOP ? <Row
         label={t("系统服务")}
         sub={
           svcError ??
@@ -570,7 +575,7 @@ function TunSection() {
             )}
           </div>
         }
-      />
+      /> : null}
       <Row
         label={t("启用 TUN")}
         sub={
@@ -584,7 +589,7 @@ function TunSection() {
             onChange={(v) => {
               if (tun) void applyAndRestart({ tun: { ...tun, enable: v } });
             }}
-            disabled={!tun || (!svc?.reachable && !tun.enable)}
+            disabled={!tun || (IS_DESKTOP && !svc?.reachable && !tun.enable)}
           />
         }
       />
@@ -994,8 +999,8 @@ function AboutSection() {
 
   return (
     <Sect title={t("关于")}>
-      <Row label={t("Mfork 版本")} right={<Val>{appVersion || "—"}</Val>} />
-      <Row
+      <Row label={t("Mfork 版本")} right={<Val>{appVersion || "—"}</Val>} last={!IS_DESKTOP} />
+      {IS_DESKTOP ? <Row
         label={t("应用更新")}
         sub={
           msg ? (
@@ -1020,7 +1025,7 @@ function AboutSection() {
           )
         }
         last
-      />
+      /> : null}
     </Sect>
   );
 }
@@ -1037,7 +1042,7 @@ export default function Settings() {
         <div className="mt-8 grid grid-cols-2 content-start gap-x-20 gap-y-10">
           <CoreSection />
           <NetworkSection />
-          <SystemSection />
+          {IS_DESKTOP ? <SystemSection /> : null}
           <TunSection />
           <DnsSection />
           <AppearanceSection />
