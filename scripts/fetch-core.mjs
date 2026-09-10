@@ -1,6 +1,10 @@
 // Downloads the latest stable mihomo core for the current OS/arch from the
 // official MetaCubeX/mihomo GitHub releases into src-tauri/resources/mihomo/.
 // Cross-platform: Windows / macOS / Linux, x64 / arm64.
+//
+// `--android [arm64|amd64]` instead fetches the Android build and places it
+// as gen/android/app/src/main/jniLibs/<abi>/libmihomo.so, the only location
+// an app may execute a binary from on Android 10+ (see docs/ANDROID.md).
 import { execFileSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync, copyFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -17,11 +21,17 @@ const tar = process.platform === "win32"
 const destDir = join(root, "src-tauri", "resources", "mihomo");
 mkdirSync(destDir, { recursive: true });
 
-const os = { win32: "windows", darwin: "darwin", linux: "linux" }[process.platform];
-const arch = { x64: "amd64", arm64: "arm64" }[process.arch];
+const androidIdx = process.argv.indexOf("--android");
+const android = androidIdx !== -1;
+const os = android ? "android" : { win32: "windows", darwin: "darwin", linux: "linux" }[process.platform];
+const arch = android
+  ? (process.argv[androidIdx + 1] ?? "arm64")
+  : { x64: "amd64", arm64: "arm64" }[process.arch];
 if (!os || !arch) throw new Error(`unsupported platform: ${process.platform}/${process.arch}`);
 const ext = os === "windows" ? "zip" : "gz";
-const assetRe = new RegExp(`^mihomo-${os}-${arch}-v[\\d.]+\\.${ext}$`);
+// the Android arm64 build is published as "android-arm64-v8"
+const assetArch = android && arch === "arm64" ? "arm64-v8" : arch;
+const assetRe = new RegExp(`^mihomo-${os}-${assetArch}-v[\\d.]+\\.${ext}$`);
 
 const gh = await fetch("https://api.github.com/repos/MetaCubeX/mihomo/releases/latest", {
   headers: { "user-agent": "mfork-build" },
@@ -33,6 +43,18 @@ if (!asset) throw new Error(`no asset matching ${assetRe} in ${release.tag_name}
 
 console.log(`Downloading ${asset.name} (${(asset.size / 1048576).toFixed(1)} MB) from ${release.tag_name}...`);
 const buf = Buffer.from(await (await fetch(asset.browser_download_url)).arrayBuffer());
+
+if (android) {
+  const abi = { arm64: "arm64-v8a", amd64: "x86_64" }[arch];
+  if (!abi) throw new Error(`unsupported android arch: ${arch}`);
+  const jni = join(root, "src-tauri", "gen", "android", "app", "src", "main", "jniLibs", abi);
+  mkdirSync(jni, { recursive: true });
+  const so = join(jni, "libmihomo.so");
+  writeFileSync(so, gunzipSync(buf));
+  writeFileSync(join(jni, "libmihomo.VERSION"), release.tag_name + "\n");
+  console.log(`OK: ${so} (${release.tag_name})`);
+  process.exit(0);
+}
 
 const binName = os === "windows" ? "mihomo.exe" : "mihomo";
 const dest = join(destDir, binName);
