@@ -7,6 +7,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::core::CoreState;
+use crate::settings::{write_atomic, AppSettings};
 
 /// Periodic auto-update: refresh due subscriptions; when the active one
 /// changed and the core is running, regenerate and tell the frontend to
@@ -100,7 +101,7 @@ fn load_index(app: &AppHandle) -> Result<ProfilesIndex, String> {
 
 fn save_index(app: &AppHandle, idx: &ProfilesIndex) -> Result<(), String> {
     let p = profiles_dir(app)?.join("index.json");
-    std::fs::write(p, serde_json::to_string_pretty(idx).unwrap()).map_err(|e| e.to_string())
+    write_atomic(&p, serde_json::to_string_pretty(idx).unwrap().as_bytes())
 }
 
 fn now_secs() -> i64 {
@@ -180,7 +181,7 @@ pub fn profile_import(app: AppHandle, url: String) -> Result<ProfileMeta, String
     let id: String = (0..8)
         .map(|_| char::from_digit(fastrand::u32(0..16), 16).unwrap())
         .collect();
-    std::fs::write(profile_path(&app, &id)?, &body).map_err(|e| e.to_string())?;
+    write_atomic(&profile_path(&app, &id)?, body.as_bytes())?;
 
     let name = filename
         .map(|f| f.trim_end_matches(".yaml").trim_end_matches(".yml").to_string())
@@ -218,7 +219,7 @@ pub fn update_by_id(app: &AppHandle, id: &str) -> Result<ProfileMeta, String> {
         .ok_or("订阅不存在")?;
     let url = item.url.clone().ok_or("本地配置无法更新")?;
     let (body, sub, _) = download(&url)?;
-    std::fs::write(profile_path(app, id)?, &body).map_err(|e| e.to_string())?;
+    write_atomic(&profile_path(app, id)?, body.as_bytes())?;
     item.updated_at = now_secs();
     if sub.is_some() {
         item.sub = sub;
@@ -245,7 +246,7 @@ pub fn profile_import_local(app: AppHandle, path: String) -> Result<ProfileMeta,
     let id: String = (0..8)
         .map(|_| char::from_digit(fastrand::u32(0..16), 16).unwrap())
         .collect();
-    std::fs::write(profile_path(&app, &id)?, &body).map_err(|e| e.to_string())?;
+    write_atomic(&profile_path(&app, &id)?, body.as_bytes())?;
     let name = std::path::Path::new(&path)
         .file_stem()
         .and_then(|s| s.to_str())
@@ -366,7 +367,30 @@ pub fn generate_config(
     // overrides run on the raw profile, before GUI-managed fields
     doc = crate::override_::apply_all(app, doc)?;
 
-    // strip fields the GUI owns (or that must not come from a subscription)
+    let s = crate::settings::load(app);
+    let doc = inject_managed(doc, &s, api_port, secret, mixed_port);
+
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("core");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let path = dir.join("config.yaml");
+    let text = serde_yaml::to_string(&Value::Mapping(doc)).map_err(|e| e.to_string())?;
+    write_atomic(&path, text.as_bytes())?;
+    Ok(path)
+}
+
+/// Pure step of config generation: strip the fields the GUI owns (or that
+/// must never come from a subscription) and inject the managed values.
+pub fn inject_managed(
+    mut doc: Mapping,
+    s: &AppSettings,
+    api_port: u16,
+    secret: &str,
+    mixed_port: u16,
+) -> Mapping {
     for key in [
         "port",
         "socks-port",
@@ -386,7 +410,6 @@ pub fn generate_config(
         doc.remove(Value::String(key.into()));
     }
 
-    let s = crate::settings::load(app);
     doc.insert("mixed-port".into(), mixed_port.into());
     doc.insert(
         "bind-address".into(),
@@ -441,15 +464,83 @@ pub fn generate_config(
     if !doc.contains_key("log-level") {
         doc.insert("log-level".into(), "info".into());
     }
+    doc
+}
 
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| e.to_string())?
-        .join("core");
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    let path = dir.join("config.yaml");
-    let text = serde_yaml::to_string(&Value::Mapping(doc)).map_err(|e| e.to_string())?;
-    std::fs::write(&path, text).map_err(|e| e.to_string())?;
-    Ok(path)
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn yaml(s: &str) -> Mapping {
+        serde_yaml::from_str(s).unwrap()
+    }
+
+    fn get<'a>(m: &'a Mapping, k: &str) -> Option<&'a Value> {
+        m.get(Value::String(k.into()))
+    }
+
+    #[test]
+    fn sub_info_header_parses_floats_and_ignores_junk() {
+        let i = parse_sub_info("upload=123; download=4.5e9; total=1073741824000; expire=1735689600; foo=bar");
+        assert_eq!(i.upload, 123);
+        assert_eq!(i.download, 4_500_000_000);
+        assert_eq!(i.total, 1_073_741_824_000);
+        assert_eq!(i.expire, 1_735_689_600);
+        let empty = parse_sub_info("");
+        assert_eq!(empty.total, 0);
+    }
+
+    #[test]
+    fn managed_fields_override_subscription() {
+        let doc = yaml(
+            "mixed-port: 7890\nport: 7891\nsocks-port: 7892\nexternal-controller: 0.0.0.0:9090\n\
+             secret: leaked\nallow-lan: true\nbind-address: '*'\nipv6: true\n\
+             find-process-mode: 'off'\ntun: {enable: true}\nmode: global\nlog-level: debug\n\
+             dns: {enable: true, nameserver: [1.1.1.1]}\nproxies: []",
+        );
+        let s = AppSettings::default();
+        let out = inject_managed(doc, &s, 9999, "s3cret", 7897);
+        assert_eq!(get(&out, "mixed-port").unwrap().as_u64(), Some(7897));
+        assert!(get(&out, "port").is_none());
+        assert!(get(&out, "socks-port").is_none());
+        assert_eq!(get(&out, "external-controller").unwrap().as_str(), Some("127.0.0.1:9999"));
+        assert_eq!(get(&out, "secret").unwrap().as_str(), Some("s3cret"));
+        assert_eq!(get(&out, "allow-lan").unwrap().as_bool(), Some(false));
+        assert_eq!(get(&out, "bind-address").unwrap().as_str(), Some("127.0.0.1"));
+        assert_eq!(get(&out, "ipv6").unwrap().as_bool(), Some(false));
+        assert_eq!(get(&out, "find-process-mode").unwrap().as_str(), Some("always"));
+        // TUN is always GUI-owned: stripped when disabled in settings
+        assert!(get(&out, "tun").is_none());
+        // dns survives unless the user opts into the GUI dns
+        assert_eq!(get(&out, "dns").unwrap()["nameserver"][0].as_str(), Some("1.1.1.1"));
+        // mode / log-level are kept from the profile
+        assert_eq!(get(&out, "mode").unwrap().as_str(), Some("global"));
+        assert_eq!(get(&out, "log-level").unwrap().as_str(), Some("debug"));
+    }
+
+    #[test]
+    fn tun_and_dns_injected_when_enabled() {
+        let mut s = AppSettings::default();
+        s.tun.enable = true;
+        s.tun.stack = "gvisor".into();
+        s.tun.dns_hijack = false;
+        s.dns.enable = true;
+        s.dns.enhanced_mode = "redir-host".into();
+        s.dns.nameserver = vec!["https://doh.pub/dns-query".into()];
+        s.dns.fallback = vec![];
+        s.allow_lan = true;
+        let out = inject_managed(yaml("proxies: []"), &s, 1, "x", 2);
+        let tun = get(&out, "tun").unwrap();
+        assert_eq!(tun["enable"].as_bool(), Some(true));
+        assert_eq!(tun["stack"].as_str(), Some("gvisor"));
+        assert!(tun.get("dns-hijack").is_none());
+        let dns = get(&out, "dns").unwrap();
+        assert_eq!(dns["enhanced-mode"].as_str(), Some("redir-host"));
+        assert!(dns.get("fake-ip-range").is_none());
+        assert!(dns.get("fallback").is_none());
+        assert_eq!(get(&out, "bind-address").unwrap().as_str(), Some("*"));
+        // defaults filled in for a bare profile
+        assert_eq!(get(&out, "mode").unwrap().as_str(), Some("rule"));
+        assert_eq!(get(&out, "log-level").unwrap().as_str(), Some("info"));
+    }
 }

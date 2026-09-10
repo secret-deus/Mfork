@@ -110,10 +110,13 @@ pub fn binary_version(bin: &PathBuf) -> Option<String> {
         cmd.creation_flags(0x0800_0000);
     }
     let out = cmd.output().ok()?;
-    let text = String::from_utf8_lossy(&out.stdout);
+    parse_version_output(&String::from_utf8_lossy(&out.stdout))
+}
+
+/// First line of `mihomo -v`: "Mihomo Meta <version> <os> <arch> ..."
+fn parse_version_output(text: &str) -> Option<String> {
     let first = text.lines().next()?;
     let mut it = first.split_whitespace();
-    // "Mihomo" "Meta" "<version>"
     it.next()?;
     it.next()?;
     it.next().map(|s| s.to_string())
@@ -339,4 +342,20 @@ fn extract_zip(buf: &[u8]) -> Result<Vec<u8>, String> {
         }
     }
     Err("zip 内未找到内核可执行文件".into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn version_line_parses() {
+        assert_eq!(
+            parse_version_output("Mihomo Meta v1.19.30 windows amd64 with go1.24 Fri Jan 1\nUse tags: with_gvisor"),
+            Some("v1.19.30".into())
+        );
+        assert_eq!(parse_version_output("Mihomo Meta alpha-abc123 linux arm64"), Some("alpha-abc123".into()));
+        assert_eq!(parse_version_output(""), None);
+        assert_eq!(parse_version_output("garbage"), None);
+    }
 }
