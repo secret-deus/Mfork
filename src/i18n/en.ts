@@ -285,7 +285,9 @@ const en: Record<string, string> = {
   // ---- global toast / hot reload
   "HTTP 与 SOCKS5 共用 · 留空为自动（沿用上次端口）": "Shared by HTTP and SOCKS5 · blank = automatic (keeps the last port)",
   "自动": "auto",
-  "应用设置失败: {msg}": "Failed to apply settings: {msg}",
+  "保存设置失败: {msg}": "Failed to save settings: {msg}",
+  "设置已保存，但应用到内核失败: {msg}": "Settings saved, but applying them to the core failed: {msg}",
+  "重新指向内核": "Re-pin core",
   "设置文件损坏，已恢复默认：{msg}": "Settings file was corrupt and has been reset: {msg}",
   "切换节点失败: {msg}": "Failed to switch node: {msg}",
   "关闭连接失败: {msg}": "Failed to close connection: {msg}",

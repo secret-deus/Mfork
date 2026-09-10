@@ -297,7 +297,15 @@ export const useApp = create<AppState>((set, get) => {
     const next = { ...cur, ...patch };
     set({ settings: next });
     applyAppearance(next);
-    await settingsSet(next);
+    try {
+      await settingsSet(next);
+    } catch (e) {
+      // the file on disk still holds `cur`: put the UI back to match it
+      set({ settings: cur });
+      applyAppearance(cur);
+      get().notify(t("保存设置失败: {msg}", { msg: String(e) }));
+      throw e;
+    }
   },
 
   async reloadSettings() {
@@ -307,13 +315,17 @@ export const useApp = create<AppState>((set, get) => {
   },
 
   async applySettings(patch, how) {
-    await get().updateSettings(patch);
+    try {
+      await get().updateSettings(patch);
+    } catch {
+      return; // already rolled back + reported
+    }
     if (get().phase !== "running") return;
     try {
       if (how === "restart") await get().restart();
       else await get().reloadConfig();
     } catch (e) {
-      get().notify(t("应用设置失败: {msg}", { msg: String(e) }));
+      get().notify(t("设置已保存，但应用到内核失败: {msg}", { msg: String(e) }));
     }
   },
 
