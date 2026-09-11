@@ -20,6 +20,9 @@ export const coreStatus = () => invoke<CoreStatus>("core_status");
 export const vpnPrepare = () => invoke<boolean>("vpn_prepare");
 /** last lines of core.err.log / core.log, for diagnosing a failed start */
 export const coreLogTail = (lines = 60) => invoke<string>("core_log_tail", { lines });
+export type DiagItem = { name: string; ok: boolean; detail: string };
+/** probes from the app process and through the core; see core.rs net_diagnose */
+export const netDiagnose = () => invoke<DiagItem[]>("net_diagnose");
 
 export const apiUrl = (api: ApiInfo, path: string) =>
   `http://127.0.0.1:${api.port}${path}`;

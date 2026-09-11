@@ -181,6 +181,113 @@ pub async fn vpn_prepare(app: AppHandle) -> Result<bool, String> {
     }
 }
 
+#[derive(Serialize)]
+pub struct DiagItem {
+    pub name: String,
+    pub ok: bool,
+    pub detail: String,
+}
+
+fn timed(name: &str, f: impl FnOnce() -> Result<String, String>) -> DiagItem {
+    let t0 = Instant::now();
+    match f() {
+        Ok(d) => DiagItem {
+            name: name.into(),
+            ok: true,
+            detail: format!("{d} · {} ms", t0.elapsed().as_millis()),
+        },
+        Err(e) => DiagItem { name: name.into(), ok: false, detail: e },
+    }
+}
+
+/// Probe the network from both sides of the tunnel: the app process (which
+/// Android keeps outside the VPN) and the core. Tells "connected but no
+/// traffic" cases apart: app cannot reach the net at all (OEM data
+/// restriction), app sockets looping back into our own TUN, core DNS dead,
+/// or only the proxied path failing.
+fn net_diagnose_inner(app: &AppHandle) -> Vec<DiagItem> {
+    const PROBE_URL: &str = "http://connect.rom.miui.com/generate_204";
+    let api = app.state::<CoreState>().api.lock().unwrap().clone();
+    let client = |proxy: Option<String>| -> Result<reqwest::blocking::Client, String> {
+        let mut b = reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(6))
+            .no_proxy();
+        if let Some(p) = proxy {
+            b = b.proxy(reqwest::Proxy::all(p).map_err(|e| e.to_string())?);
+        }
+        b.build().map_err(|e| e.to_string())
+    };
+    let mut out = Vec::new();
+    out.push(timed("应用 → 223.5.5.5:443（TCP，不经 DNS）", || {
+        let s = TcpStream::connect_timeout(
+            &"223.5.5.5:443".parse().unwrap(),
+            Duration::from_secs(4),
+        )
+        .map_err(|e| e.to_string())?;
+        let local = s.local_addr().map(|a| a.ip().to_string()).unwrap_or_default();
+        if local.starts_with("172.19.0.") || local.starts_with("fdfe:dcba:9876") {
+            return Err(format!("本地地址 {local}：连接被路由进了自己的 VPN（回环）"));
+        }
+        Ok(format!("可达，本地地址 {local}"))
+    }));
+    out.push(timed("应用系统 DNS → www.baidu.com", || {
+        use std::net::ToSocketAddrs;
+        let addrs: Vec<_> = ("www.baidu.com", 80)
+            .to_socket_addrs()
+            .map_err(|e| e.to_string())?
+            .collect();
+        if addrs.is_empty() {
+            return Err("无结果".into());
+        }
+        Ok(addrs.iter().take(2).map(|a| a.ip().to_string()).collect::<Vec<_>>().join(", "))
+    }));
+    out.push(timed("应用 HTTP → generate_204", || {
+        let r = client(None)?.get(PROBE_URL).send().map_err(|e| e.to_string())?;
+        Ok(format!("HTTP {}", r.status().as_u16()))
+    }));
+    match api {
+        None => out.push(DiagItem {
+            name: "内核".into(),
+            ok: false,
+            detail: "内核未运行，跳过内核侧探测".into(),
+        }),
+        Some(api) => {
+            out.push(timed("内核 DNS → www.baidu.com", || {
+                let r = client(None)?
+                    .get(format!(
+                        "http://127.0.0.1:{}/dns/query?name=www.baidu.com&type=A",
+                        api.port
+                    ))
+                    .bearer_auth(&api.secret)
+                    .send()
+                    .map_err(|e| e.to_string())?;
+                let v: serde_json::Value = r.json().map_err(|e| e.to_string())?;
+                let n = v.get("Answer").and_then(|a| a.as_array()).map(|a| a.len()).unwrap_or(0);
+                if n == 0 {
+                    Err(format!("无应答：{v}"))
+                } else {
+                    Ok(format!("{n} 条记录"))
+                }
+            }));
+            out.push(timed("经内核混合端口 HTTP → generate_204", || {
+                let r = client(Some(format!("http://127.0.0.1:{}", api.mixed_port)))?
+                    .get(PROBE_URL)
+                    .send()
+                    .map_err(|e| e.to_string())?;
+                Ok(format!("HTTP {}", r.status().as_u16()))
+            }));
+        }
+    }
+    out
+}
+
+#[tauri::command]
+pub async fn net_diagnose(app: AppHandle) -> Result<Vec<DiagItem>, String> {
+    tauri::async_runtime::spawn_blocking(move || net_diagnose_inner(&app))
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// Start (or return the already running) core. The body blocks for up to
 /// a minute waiting for the API port, and on Android talks to the VPN
 /// plugin, so it runs on the blocking pool rather than the main thread.

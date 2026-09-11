@@ -29,6 +29,8 @@ import {
   webdavDelete,
   webdavList,
   webdavRestore,
+  netDiagnose,
+  type DiagItem,
 } from "../lib/core";
 import { LOCALES, useT } from "../i18n";
 import { THEMES } from "../theme";
@@ -92,6 +94,52 @@ function Sect({ title, children }: { title: string; children: React.ReactNode })
       <div className="border-b border-line-strong pb-2.5 text-[16px] font-semibold">{title}</div>
       {children}
     </div>
+  );
+}
+
+function NetDiagRow() {
+  const t = useT();
+  const [busy, setBusy] = useState(false);
+  const [items, setItems] = useState<DiagItem[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const run = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      setItems(await netDiagnose());
+    } catch (e) {
+      setErr(String(e));
+    }
+    setBusy(false);
+  };
+  return (
+    <Row
+      label={t("网络诊断")}
+      sub={
+        <div>
+          <div>{t("从应用进程与内核两侧分别探测，用于定位“已连接但无流量”")}</div>
+          {err ? <div className="mt-2 text-err">{err}</div> : null}
+          {items ? (
+            <div className="mt-2.5 space-y-1.5">
+              {items.map((it) => (
+                <div key={it.name} className="flex gap-2 text-[12.5px] leading-relaxed">
+                  <span className={`shrink-0 ${it.ok ? "text-ok" : "text-err"}`}>{it.ok ? "✓" : "✗"}</span>
+                  <span className="min-w-0 break-all">
+                    <span className="text-fg-2">{it.name}</span>
+                    <span className="text-fg-3"> · {it.detail}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      }
+      right={
+        <Btn onClick={() => void run()} disabled={busy}>
+          {busy ? t("诊断中…") : t("运行诊断")}
+        </Btn>
+      }
+    />
   );
 }
 
@@ -623,6 +671,7 @@ function TunSection() {
           />
         }
       />
+      {!IS_DESKTOP ? <NetDiagRow /> : null}
       {IS_DESKTOP ? <Row
         label={t("严格路由")}
         right={

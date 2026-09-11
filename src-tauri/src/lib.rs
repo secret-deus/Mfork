@@ -84,6 +84,7 @@ pub fn run() {
             core::core_status,
             core::core_log_tail,
             core::vpn_prepare,
+            core::net_diagnose,
             profile::profiles_list,
             profile::profile_import,
             profile::profile_import_local,
