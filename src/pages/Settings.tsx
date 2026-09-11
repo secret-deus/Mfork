@@ -534,9 +534,11 @@ function TunSection() {
   }, []);
 
   // entering / leaving TUN mode switches who runs the core (service vs.
-  // child process) and needs a restart; the other knobs reload in place
+  // child process) and needs a restart; the other knobs reload in place on
+  // desktop. On Android the VPN interface is re-established per start, so
+  // every TUN change restarts.
   const applyAndRestart = (patch: Partial<AppSettings>) => applySettings(patch, "restart");
-  const applyHot = (patch: Partial<AppSettings>) => applySettings(patch, "hot");
+  const applyHot = (patch: Partial<AppSettings>) => applySettings(patch, IS_DESKTOP ? "hot" : "restart");
 
   const svcAction = async (action: () => Promise<void>) => {
     setSvcBusy(true);
@@ -587,7 +589,7 @@ function TunSection() {
         label={t("启用 TUN")}
         sub={
           !IS_DESKTOP
-            ? t("VPN 接管即将推出；目前请在 Wi-Fi 设置中把代理指向 127.0.0.1 与上方端口")
+            ? t("以系统 VPN 接管全部流量；首次开启会弹出系统授权")
             : svc?.reachable
               ? t("虚拟网卡接管全局流量；与其他代理客户端的 TUN/系统代理互斥")
               : t("需先安装系统服务")
@@ -598,7 +600,7 @@ function TunSection() {
             onChange={(v) => {
               if (tun) void applyAndRestart({ tun: { ...tun, enable: v } });
             }}
-            disabled={!tun || (IS_DESKTOP ? !svc?.reachable && !tun.enable : true)}
+            disabled={!tun || (IS_DESKTOP && !svc?.reachable && !tun.enable)}
           />
         }
       />

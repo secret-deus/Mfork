@@ -16,6 +16,8 @@ export interface CoreStatus {
 export const coreStart = () => invoke<ApiInfo>("core_start");
 export const coreStop = () => invoke<boolean>("core_stop");
 export const coreStatus = () => invoke<CoreStatus>("core_status");
+/** Android: system VPN consent dialog; true once granted (always true elsewhere) */
+export const vpnPrepare = () => invoke<boolean>("vpn_prepare");
 /** last lines of core.err.log / core.log, for diagnosing a failed start */
 export const coreLogTail = (lines = 60) => invoke<string>("core_log_tail", { lines });
 

@@ -263,7 +263,7 @@ export default function Overview() {
   }, [phase]);
   const tun = settings?.tun;
   const tunOn = tun?.enable ?? false;
-  const tunAvailable = !!tun && (svc?.reachable || tunOn);
+  const tunAvailable = !!tun && (!IS_DESKTOP || svc?.reachable || tunOn);
   const toggleTun = async () => {
     if (!tun) return;
     await updateSettings({ tun: { ...tun, enable: !tunOn } } as Partial<AppSettings>);

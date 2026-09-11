@@ -16,8 +16,10 @@ import {
   settingsSet,
   systemProxySet,
   traySync,
+  vpnPrepare,
   wsUrl,
 } from "./lib/core";
+import { IS_ANDROID } from "./lib/platform";
 import { ConnectionsSnapshot, ConnItem, LogLine } from "./lib/types";
 import { isLocale, t, useLocale } from "./i18n";
 import { applyTheme } from "./theme";
@@ -191,6 +193,12 @@ export const useApp = create<AppState>((set, get) => {
   const startImpl = async () => {
     set({ phase: "starting", error: null });
     try {
+      if (IS_ANDROID) {
+        const s = get().settings ?? (await settingsGet());
+        if (s.tun.enable && !(await vpnPrepare())) {
+          throw new Error(t("未获得 VPN 授权，无法启用 TUN"));
+        }
+      }
       const api = await coreStart();
       const version = await apiGet<{ version: string }>(api, "/version");
       const configs = await apiGet<{ mode: string }>(api, "/configs");
@@ -370,6 +378,13 @@ export const useApp = create<AppState>((set, get) => {
     await listen<string>("sys-proxy-error", (e) => {
       get().notify(e.payload);
     });
+    // Android: the system (or another VPN app) revoked our VPN
+    if (IS_ANDROID) {
+      window.addEventListener("mfork-vpn-revoked", () => {
+        get().notify(t("VPN 已被系统断开，内核已停止"));
+        void get().stop();
+      });
+    }
     // app-config.json failed to parse: the backend moved it aside
     await listen<string>("settings-corrupt", (e) => {
       get().notify(t("设置文件损坏，已恢复默认：{msg}", { msg: e.payload }));

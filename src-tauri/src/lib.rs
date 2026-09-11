@@ -4,6 +4,8 @@ mod override_;
 mod profile;
 mod settings;
 mod updater;
+#[cfg(target_os = "android")]
+mod vpn;
 
 // Desktop integrations (elevated service, OS proxy + autostart, tray) have
 // inert mobile stand-ins so the shared modules compile unchanged; see
@@ -31,6 +33,10 @@ use tauri::Manager;
 pub fn run() {
     #[allow(unused_mut)]
     let mut builder = tauri::Builder::default().plugin(tauri_plugin_dialog::init());
+    #[cfg(target_os = "android")]
+    {
+        builder = builder.plugin(vpn::init());
+    }
     #[cfg(desktop)]
     {
         builder = builder
@@ -77,6 +83,7 @@ pub fn run() {
             core::core_stop,
             core::core_status,
             core::core_log_tail,
+            core::vpn_prepare,
             profile::profiles_list,
             profile::profile_import,
             profile::profile_import_local,

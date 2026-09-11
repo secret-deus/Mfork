@@ -380,7 +380,8 @@ pub fn generate_config(
     doc = crate::override_::apply_all(app, doc)?;
 
     let s = crate::settings::load(app);
-    let doc = inject_managed(doc, &s, api_port, secret, mixed_port);
+    let tun_fd = *app.state::<CoreState>().tun_fd.lock().unwrap();
+    let doc = inject_managed(doc, &s, api_port, secret, mixed_port, tun_fd);
 
     let dir = app
         .path()
@@ -396,12 +397,15 @@ pub fn generate_config(
 
 /// Pure step of config generation: strip the fields the GUI owns (or that
 /// must never come from a subscription) and inject the managed values.
+/// `tun_fd` is the Android VPN interface: when set, the core attaches to
+/// that descriptor instead of creating a device and routes of its own.
 pub fn inject_managed(
     mut doc: Mapping,
     s: &AppSettings,
     api_port: u16,
     secret: &str,
     mixed_port: u16,
+    tun_fd: Option<i32>,
 ) -> Mapping {
     for key in [
         "port",
@@ -444,8 +448,15 @@ pub fn inject_managed(
         let mut tun = Mapping::new();
         tun.insert("enable".into(), true.into());
         tun.insert("stack".into(), s.tun.stack.as_str().into());
-        tun.insert("auto-route".into(), s.tun.auto_route.into());
-        tun.insert("strict-route".into(), s.tun.strict_route.into());
+        if let Some(fd) = tun_fd {
+            // the OS VPN service owns the device, addresses and routes
+            tun.insert("file-descriptor".into(), fd.into());
+            tun.insert("auto-route".into(), false.into());
+            tun.insert("auto-detect-interface".into(), false.into());
+        } else {
+            tun.insert("auto-route".into(), s.tun.auto_route.into());
+            tun.insert("strict-route".into(), s.tun.strict_route.into());
+        }
         tun.insert("mtu".into(), s.tun.mtu.into());
         if s.tun.dns_hijack {
             tun.insert(
@@ -455,7 +466,14 @@ pub fn inject_managed(
         }
         doc.insert("tun".into(), Value::Mapping(tun));
     }
-    if s.dns.enable {
+    // behind the VPN every DNS query lands in the tunnel: the core must
+    // answer it, so a profile without a working dns block gets ours
+    let profile_dns_on = doc
+        .get(Value::String("dns".into()))
+        .and_then(|d| d.get("enable"))
+        .and_then(|e| e.as_bool())
+        .unwrap_or(false);
+    if s.dns.enable || (tun_fd.is_some() && !profile_dns_on) {
         let list = |v: &[String]| {
             Value::Sequence(v.iter().map(|x| Value::String(x.clone())).collect())
         };
@@ -524,7 +542,7 @@ mod tests {
              dns: {enable: true, nameserver: [1.1.1.1]}\nproxies: []",
         );
         let s = AppSettings::default();
-        let out = inject_managed(doc, &s, 9999, "s3cret", 7897);
+        let out = inject_managed(doc, &s, 9999, "s3cret", 7897, None);
         assert_eq!(get(&out, "mixed-port").unwrap().as_u64(), Some(7897));
         assert!(get(&out, "port").is_none());
         assert!(get(&out, "socks-port").is_none());
@@ -554,7 +572,7 @@ mod tests {
         s.dns.nameserver = vec!["https://doh.pub/dns-query".into()];
         s.dns.fallback = vec![];
         s.allow_lan = true;
-        let out = inject_managed(yaml("proxies: []"), &s, 1, "x", 2);
+        let out = inject_managed(yaml("proxies: []"), &s, 1, "x", 2, None);
         let tun = get(&out, "tun").unwrap();
         assert_eq!(tun["enable"].as_bool(), Some(true));
         assert_eq!(tun["stack"].as_str(), Some("gvisor"));
@@ -568,5 +586,24 @@ mod tests {
         assert!(get(&out, "geox-url").unwrap()["mmdb"].as_str().unwrap().contains("geoip.metadb"));
         assert_eq!(get(&out, "mode").unwrap().as_str(), Some("rule"));
         assert_eq!(get(&out, "log-level").unwrap().as_str(), Some("info"));
+    }
+
+    #[test]
+    fn vpn_fd_attaches_tun_and_forces_dns() {
+        let mut s = AppSettings::default();
+        s.tun.enable = true;
+        // profile has a dns block that is switched off: ours must replace it
+        let out = inject_managed(yaml("dns: {enable: false}\nproxies: []"), &s, 1, "x", 2, Some(7));
+        let tun = get(&out, "tun").unwrap();
+        assert_eq!(tun["file-descriptor"].as_i64(), Some(7));
+        assert_eq!(tun["auto-route"].as_bool(), Some(false));
+        assert_eq!(tun["auto-detect-interface"].as_bool(), Some(false));
+        assert!(tun.get("strict-route").is_none());
+        let dns = get(&out, "dns").unwrap();
+        assert_eq!(dns["enable"].as_bool(), Some(true));
+        assert_eq!(dns["enhanced-mode"].as_str(), Some("fake-ip"));
+        // a profile that already runs its own dns keeps it
+        let out2 = inject_managed(yaml("dns: {enable: true, nameserver: [9.9.9.9]}\nproxies: []"), &s, 1, "x", 2, Some(7));
+        assert_eq!(get(&out2, "dns").unwrap()["nameserver"][0].as_str(), Some("9.9.9.9"));
     }
 }

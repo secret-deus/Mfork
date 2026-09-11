@@ -22,6 +22,8 @@ pub struct CoreState {
     pub api: Mutex<Option<ApiInfo>>,
     /// core was started through the elevated service (TUN mode)
     pub via_service: Mutex<bool>,
+    /// Android: fd of the VPN service's TUN interface while the core uses it
+    pub tun_fd: Mutex<Option<i32>>,
 }
 
 #[derive(Clone, Serialize)]
@@ -162,10 +164,39 @@ fn data_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir)
 }
 
+/// Android: system VPN consent dialog (no-op elsewhere). Blocking work
+/// runs off the main thread so the Kotlin side can drive the activity.
 #[tauri::command]
-pub fn core_start(app: AppHandle, state: State<'_, CoreState>) -> Result<ApiInfo, String> {
-    let use_service = crate::settings::load(&app).tun.enable;
-    if use_service && !crate::service::ping(&app) {
+pub async fn vpn_prepare(app: AppHandle) -> Result<bool, String> {
+    #[cfg(target_os = "android")]
+    {
+        tauri::async_runtime::spawn_blocking(move || crate::vpn::prepare(&app))
+            .await
+            .map_err(|e| e.to_string())?
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = app;
+        Ok(true)
+    }
+}
+
+/// Start (or return the already running) core. The body blocks for up to
+/// a minute waiting for the API port, and on Android talks to the VPN
+/// plugin, so it runs on the blocking pool rather than the main thread.
+#[tauri::command]
+pub async fn core_start(app: AppHandle) -> Result<ApiInfo, String> {
+    tauri::async_runtime::spawn_blocking(move || core_start_inner(&app))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn core_start_inner(app: &AppHandle) -> Result<ApiInfo, String> {
+    let state = app.state::<CoreState>();
+    let mut settings = crate::settings::load(app);
+    // desktop: TUN needs the elevated service; Android: the VPN service
+    let use_service = cfg!(desktop) && settings.tun.enable;
+    if use_service && !crate::service::ping(app) {
         return Err("TUN 模式需要系统服务：请先在设置页安装 Mfork 服务".into());
     }
 
@@ -187,7 +218,6 @@ pub fn core_start(app: AppHandle, state: State<'_, CoreState>) -> Result<ApiInfo
     let bin = core_binary(&app)?;
     let dir = data_dir(&app)?;
     let api_port = free_port()?;
-    let mut settings = crate::settings::load(&app);
     let mixed_port = if settings.mixed_port > 0 {
         let fixed = settings.mixed_port;
         if TcpListener::bind(("127.0.0.1", fixed)).is_err() {
@@ -211,7 +241,25 @@ pub fn core_start(app: AppHandle, state: State<'_, CoreState>) -> Result<ApiInfo
     };
     let secret = random_secret();
 
-    let config_path = crate::profile::generate_config(&app, api_port, &secret, mixed_port)?;
+    // Android TUN: the VPN service brings the interface up first and the
+    // config points the core at its fd
+    #[cfg(target_os = "android")]
+    let tun_fd: Option<i32> = if settings.tun.enable {
+        Some(crate::vpn::establish(app, settings.tun.mtu, settings.ipv6, "Mfork")?)
+    } else {
+        None
+    };
+    #[cfg(not(target_os = "android"))]
+    let tun_fd: Option<i32> = None;
+    *state.tun_fd.lock().unwrap() = tun_fd;
+
+    let config_path = match crate::profile::generate_config(app, api_port, &secret, mixed_port) {
+        Ok(p) => p,
+        Err(e) => {
+            release_tun(app, &state);
+            return Err(e);
+        }
+    };
     seed_geodata(&dir);
     // first start may still have to fetch a geo file the profile needs
     let first_start = !dir.join("geoip.metadb").exists();
@@ -258,7 +306,21 @@ pub fn core_start(app: AppHandle, state: State<'_, CoreState>) -> Result<ApiInfo
             cmd.creation_flags(CREATE_NO_WINDOW);
         }
 
-        let child = cmd.spawn().map_err(|e| format!("spawn mihomo failed: {e}"))?;
+        // the fd must survive exec: clear CLOEXEC (it is owned by the VPN
+        // service's ParcelFileDescriptor, so it is not closed here)
+        #[cfg(target_os = "android")]
+        if let Some(fd) = tun_fd {
+            unsafe {
+                libc::fcntl(fd, libc::F_SETFD, 0);
+            }
+        }
+        let child = match cmd.spawn() {
+            Ok(c) => c,
+            Err(e) => {
+                release_tun(app, &state);
+                return Err(format!("spawn mihomo failed: {e}"));
+            }
+        };
         pid = child.id();
         *child_guard = Some(child);
         *state.via_service.lock().unwrap() = false;
@@ -319,6 +381,7 @@ pub fn core_start(app: AppHandle, state: State<'_, CoreState>) -> Result<ApiInfo
                 *state.api.lock().unwrap() = None;
                 *state.via_service.lock().unwrap() = false;
                 crate::system::clear_if_enabled(&app2);
+                release_tun(&app2, &state);
                 let _ = app2.emit("core-exited", None::<i32>);
                 break;
             }
@@ -335,6 +398,7 @@ pub fn core_start(app: AppHandle, state: State<'_, CoreState>) -> Result<ApiInfo
                         *state.api.lock().unwrap() = None;
                         drop(guard);
                         crate::system::clear_if_enabled(&app2);
+                        release_tun(&app2, &state);
                         let _ = app2.emit("core-exited", status.code());
                         break;
                     }
@@ -347,6 +411,19 @@ pub fn core_start(app: AppHandle, state: State<'_, CoreState>) -> Result<ApiInfo
     }
 
     Ok(info)
+}
+
+/// Android: tear the VPN down once the core no longer uses its fd.
+fn release_tun(app: &AppHandle, state: &State<'_, CoreState>) {
+    let had = state.tun_fd.lock().unwrap().take().is_some();
+    #[cfg(target_os = "android")]
+    if had {
+        crate::vpn::stop(app);
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (app, had);
+    }
 }
 
 fn core_stop_inner(app: &AppHandle, state: &State<'_, CoreState>) -> bool {
@@ -366,6 +443,7 @@ fn core_stop_inner(app: &AppHandle, state: &State<'_, CoreState>) -> bool {
         stopped = true;
     }
     *state.api.lock().unwrap() = None;
+    release_tun(app, state);
     stopped
 }
 
@@ -378,12 +456,17 @@ pub fn stop_for_upgrade(app: &AppHandle, state: &State<'_, CoreState>) {
 }
 
 #[tauri::command]
-pub fn core_stop(app: AppHandle, state: State<'_, CoreState>) -> bool {
-    let stopped = core_stop_inner(&app, &state);
-    // no core to point at any more — turn the OS proxy off (setting kept,
-    // so the next start re-applies it)
-    crate::system::clear_if_enabled(&app);
-    stopped
+pub async fn core_stop(app: AppHandle) -> bool {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<CoreState>();
+        let stopped = core_stop_inner(&app, &state);
+        // no core to point at any more — turn the OS proxy off (setting kept,
+        // so the next start re-applies it)
+        crate::system::clear_if_enabled(&app);
+        stopped
+    })
+    .await
+    .unwrap_or(false)
 }
 
 #[tauri::command]
