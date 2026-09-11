@@ -30,3 +30,4 @@ src-tauri/resources/mihomo/
 service/target/
 src-tauri/resources/service/
 /dist-android/
+/dist-windows/
