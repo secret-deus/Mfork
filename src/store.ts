@@ -386,6 +386,12 @@ export const useApp = create<AppState>((set, get) => {
         if (reason === "revoked") get().notify(t("VPN 已被系统断开，内核已停止"));
         void get().stop();
       });
+      // the system started our VPN service itself (always-on VPN): connect
+      // through the normal path so a core sits behind the tunnel
+      window.addEventListener("mfork-vpn-start-requested", () => {
+        const phase = get().phase;
+        if (phase !== "running" && phase !== "starting") void get().start();
+      });
     }
     // app-config.json failed to parse: the backend moved it aside
     await listen<string>("settings-corrupt", (e) => {

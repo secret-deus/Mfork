@@ -40,11 +40,18 @@ class MforkVpnService : VpnService() {
     private const val TAG = "MforkVpn"
     private const val CHANNEL = "mfork-vpn"
     private const val NOTIFICATION_ID = 1
+    private const val OPEN_APP_NOTIFICATION_ID = 2
 
     /** Set by the plugin before starting the service; called once with (fd, null) or (null, error). */
     @Volatile var onEstablished: ((Int?, String?) -> Unit)? = null
     /** VPN went away without Rust asking: "revoked" (system) or "user" (notification / tile). */
     @Volatile var onStopped: ((String) -> Unit)? = null
+    /**
+     * The system started the service on its own (always-on VPN, or a restart
+     * after the app process died) while the page is alive: ask it to connect
+     * through the normal path instead of putting up a bare tunnel.
+     */
+    @Volatile var onStartRequested: (() -> Unit)? = null
     @Volatile var running = false
       private set
     @Volatile private var instance: MforkVpnService? = null
@@ -71,9 +78,22 @@ class MforkVpnService : VpnService() {
       if (fromUser) onStopped?.invoke("user")
       return START_NOT_STICKY
     }
-    val mtu = intent?.getIntExtra(EXTRA_MTU, 1500) ?: 1500
-    val ipv6 = intent?.getBooleanExtra(EXTRA_IPV6, false) ?: false
-    session = intent?.getStringExtra(EXTRA_SESSION) ?: "Mfork"
+    if (intent?.action != ACTION_START || onEstablished == null) {
+      // Not Rust asking for a TUN: the system started us (always-on VPN,
+      // or a sticky restart after the app process was killed). Establishing
+      // here would put up an interface with no core behind it — every
+      // packet vanishes while system settings say "connected". Hand off.
+      if (running && tun != null) return START_NOT_STICKY // already up, nothing to do
+      Log.i(TAG, "system-initiated start (action=${intent?.action}); not establishing")
+      startForegroundCompat(buildNotification("等待应用连接…"))
+      val ask = onStartRequested
+      if (ask != null) ask() else notifyOpenApp()
+      teardown()
+      return START_NOT_STICKY
+    }
+    val mtu = intent.getIntExtra(EXTRA_MTU, 1500)
+    val ipv6 = intent.getBooleanExtra(EXTRA_IPV6, false)
+    session = intent.getStringExtra(EXTRA_SESSION) ?: "Mfork"
 
     startForegroundCompat(buildNotification("VPN 已连接"))
     try {
@@ -106,7 +126,9 @@ class MforkVpnService : VpnService() {
       val cb = onEstablished
       onEstablished = null
       cb?.invoke(pfd.fd, null)
-      return START_STICKY
+      // never sticky: if the process dies the core dies with it, and a
+      // resurrected service would only own a dead tunnel
+      return START_NOT_STICKY
     } catch (e: Exception) {
       Log.e(TAG, "establish failed", e)
       val cb = onEstablished
@@ -214,6 +236,23 @@ class MforkVpnService : VpnService() {
     @Suppress("DEPRECATION")
     b.addAction(Notification.Action.Builder(null, "断开", stop).build())
     return b.build()
+  }
+
+  /** The app is not running: the system's VPN request needs a human to open it. */
+  private fun notifyOpenApp() {
+    val open = PendingIntent.getActivity(
+      this, 2,
+      Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+      PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+    )
+    val b = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, CHANNEL)
+    else @Suppress("DEPRECATION") Notification.Builder(this)
+    b.setSmallIcon(R.mipmap.ic_launcher)
+      .setContentTitle("Mfork 未连接")
+      .setContentText("系统请求开启 VPN，点击打开应用完成连接")
+      .setContentIntent(open)
+      .setAutoCancel(true)
+    getSystemService(NotificationManager::class.java).notify(OPEN_APP_NOTIFICATION_ID, b.build())
   }
 
   private fun startForegroundCompat(notification: Notification) {

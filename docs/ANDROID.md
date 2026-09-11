@@ -93,6 +93,8 @@ tun:
 
 `MforkVpnService` 在 `establish` 成功後 `startForeground`，通知顯示模式與實時速率（速率由前端經插件 `updateNotification` 推送，每秒一次，App 進背景時由 Rust 側輪詢 `/traffic` 接管——待定，看 WebView 在背景是否被凍結）。Android 14 需要聲明 `foregroundServiceType`，VPN 場景用 `specialUse` 並在 manifest 的 `PROPERTY_SPECIAL_USE_FGS_SUBTYPE` 說明用途（待驗證）。
 
+服務只在 Rust 明確請求（`ACTION_START` 且有回呼等 fd）時才 `establish()`，且回傳 `START_NOT_STICKY`：系統自行拉起服務（「始終開啟 VPN」、或進程被殺後的重啟）時若直接建 TUN，後面沒有內核，所有流量進黑洞而系統設定卻顯示「已連線」。這種啟動改為通知頁面走正常連線流程；App 不在時發一條「點擊打開應用完成連線」的通知。
+
 首次啟動需 `VpnService.prepare()` 的系統授權對話框，以及 Android 13+ 的通知權限；引導放在概覽頁的連線按鈕流程裡。
 
 ### 6. TLS：reqwest 切到 rustls

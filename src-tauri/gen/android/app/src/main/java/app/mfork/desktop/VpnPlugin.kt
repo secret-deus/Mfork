@@ -39,6 +39,13 @@ class VpnPlugin(private val activity: Activity) : Plugin(activity) {
 
   override fun load(webView: WebView) {
     this.webView = webView
+    MforkVpnService.onStartRequested = {
+      activity.runOnUiThread {
+        this.webView?.evaluateJavascript(
+          "window.dispatchEvent(new CustomEvent('mfork-vpn-start-requested'))", null
+        )
+      }
+    }
     MforkVpnService.onStopped = { reason ->
       // no plugin event channel needed: poke the page directly
       activity.runOnUiThread {
