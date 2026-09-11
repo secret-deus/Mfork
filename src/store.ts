@@ -78,6 +78,9 @@ interface AppState {
 }
 
 let sockets: WebSocket[] = [];
+let streamGeneration = 0;
+let streamRetry: number | null = null;
+let streamRetryDelay = 1000;
 
 // log buffer: batched into the store every 250ms so chatty debug output
 // doesn't trigger a re-render per line
@@ -87,6 +90,9 @@ let logFlush: number | null = null;
 const LOG_CAP = 1000;
 
 function closeStreams() {
+  streamGeneration++;
+  if (streamRetry != null) clearTimeout(streamRetry);
+  streamRetry = null;
   for (const ws of sockets) ws.close();
   sockets = [];
   if (logFlush != null) {
@@ -159,6 +165,23 @@ function openStreams(
     });
   };
   sockets.push(traffic, memory, conns);
+  const generation = streamGeneration;
+  for (const socket of sockets) {
+    socket.onopen = () => {
+      if (generation === streamGeneration && sockets.every((s) => s.readyState === WebSocket.OPEN)) {
+        streamRetryDelay = 1000;
+      }
+    };
+    socket.onclose = () => {
+      if (generation !== streamGeneration || streamRetry != null) return;
+      streamRetry = window.setTimeout(() => {
+        streamRetry = null;
+        if (generation === streamGeneration && get().api === api) openStreams(api, set, get);
+      }, streamRetryDelay);
+      streamRetryDelay = Math.min(streamRetryDelay * 2, 15000);
+    };
+    socket.onerror = () => socket.close();
+  }
 }
 
 let initialized = false;
@@ -247,6 +270,10 @@ export const useApp = create<AppState>((set, get) => {
   notify(text, err = true) {
     const id = Date.now() + Math.random();
     set({ notice: { id, text, err } });
+    if (err) {
+      const line: LogLine = { type: "error", payload: `[App] ${text}`, seq: logSeq++, at: Date.now() };
+      set({ logs: [...get().logs, line].slice(-LOG_CAP) });
+    }
     if (noticeTimer != null) clearTimeout(noticeTimer);
     noticeTimer = window.setTimeout(() => {
       noticeTimer = null;

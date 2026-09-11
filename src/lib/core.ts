@@ -43,7 +43,14 @@ async function request<T>(
       ...init?.headers,
     },
   });
-  if (!res.ok) throw new Error(`${path}: HTTP ${res.status}`);
+  if (!res.ok) {
+    let detail = (await res.text()).trim();
+    try {
+      const body = JSON.parse(detail);
+      detail = typeof body.message === "string" ? body.message : detail;
+    } catch { /* Some controller failures return plain text. */ }
+    throw new Error(`${path}: HTTP ${res.status}${detail ? ` — ${detail.slice(0, 500)}` : ""}`);
+  }
   if (res.status === 204) return undefined as T;
   const text = await res.text();
   return (text ? JSON.parse(text) : undefined) as T;

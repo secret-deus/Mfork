@@ -689,11 +689,11 @@ function TunSection() {
         sub={t("接管发往任意 53 端口的查询")}
         right={
           <Toggle
-            on={tun?.dns_hijack ?? true}
+            on={IS_DESKTOP ? (tun?.dns_hijack ?? true) : true}
             onChange={(v) => {
               if (tun) void applyHot({ tun: { ...tun, dns_hijack: v } });
             }}
-            disabled={!tun}
+            disabled={!tun || !IS_DESKTOP}
           />
         }
         last

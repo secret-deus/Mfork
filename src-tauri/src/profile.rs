@@ -458,7 +458,9 @@ pub fn inject_managed(
             tun.insert("strict-route".into(), s.tun.strict_route.into());
         }
         tun.insert("mtu".into(), s.tun.mtu.into());
-        if s.tun.dns_hijack {
+        // Android advertises a synthetic DNS address through VpnService.
+        // Queries to that address must always be handled by the core.
+        if s.tun.dns_hijack || tun_fd.is_some() {
             tun.insert(
                 "dns-hijack".into(),
                 Value::Sequence(vec![Value::String("any:53".into())]),
@@ -592,10 +594,12 @@ mod tests {
     fn vpn_fd_attaches_tun_and_forces_dns() {
         let mut s = AppSettings::default();
         s.tun.enable = true;
+        s.tun.dns_hijack = false;
         // profile has a dns block that is switched off: ours must replace it
         let out = inject_managed(yaml("dns: {enable: false}\nproxies: []"), &s, 1, "x", 2, Some(7));
         let tun = get(&out, "tun").unwrap();
         assert_eq!(tun["file-descriptor"].as_i64(), Some(7));
+        assert_eq!(tun["dns-hijack"][0].as_str(), Some("any:53"));
         assert_eq!(tun["auto-route"].as_bool(), Some(false));
         assert_eq!(tun["auto-detect-interface"].as_bool(), Some(false));
         assert!(tun.get("strict-route").is_none());

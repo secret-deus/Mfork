@@ -109,11 +109,9 @@ class MforkVpnService : VpnService() {
         builder.addAddress("fdfe:dcba:9876::1", 126)
         builder.addRoute("::", 0)
       }
-      try {
-        builder.addDisallowedApplication(packageName)
-      } catch (e: Exception) {
-        Log.w(TAG, "addDisallowedApplication: $e")
-      }
+      // The child core shares our UID. Without this exclusion, its outbound
+      // sockets would be routed back into the tunnel. Abort on failure.
+      builder.addDisallowedApplication(packageName)
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) builder.setMetered(false)
 
       val pfd = builder.establish()

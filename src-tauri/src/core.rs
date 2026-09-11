@@ -395,16 +395,27 @@ fn core_start_inner(app: &AppHandle) -> Result<ApiInfo, String> {
         }
         *state.via_service.lock().unwrap() = true;
     } else {
+        let log_files = (|| -> std::io::Result<_> {
+            Ok((std::fs::File::create(dir.join("core.log"))?,
+                std::fs::File::create(dir.join("core.err.log"))?))
+        })();
+        let (stdout, stderr) = match log_files {
+            Ok(files) => files,
+            Err(e) => {
+                release_tun(app, &state);
+                return Err(format!("open core logs failed: {e}"));
+            }
+        };
         let mut cmd = Command::new(&bin);
         cmd.arg("-d")
             .arg(&dir)
             .arg("-f")
             .arg(&config_path)
             .stdout(std::process::Stdio::from(
-                std::fs::File::create(dir.join("core.log")).map_err(|e| e.to_string())?,
+                stdout,
             ))
             .stderr(std::process::Stdio::from(
-                std::fs::File::create(dir.join("core.err.log")).map_err(|e| e.to_string())?,
+                stderr,
             ));
         #[cfg(windows)]
         {
@@ -413,12 +424,19 @@ fn core_start_inner(app: &AppHandle) -> Result<ApiInfo, String> {
             cmd.creation_flags(CREATE_NO_WINDOW);
         }
 
-        // the fd must survive exec: clear CLOEXEC (it is owned by the VPN
-        // service's ParcelFileDescriptor, so it is not closed here)
+        // Only the core child should inherit the VPN descriptor. Keep the
+        // parent's CLOEXEC flag intact and report handoff errors via spawn.
         #[cfg(target_os = "android")]
         if let Some(fd) = tun_fd {
+            use std::os::unix::process::CommandExt;
             unsafe {
-                libc::fcntl(fd, libc::F_SETFD, 0);
+                cmd.pre_exec(move || {
+                    let flags = libc::fcntl(fd, libc::F_GETFD);
+                    if flags < 0 || libc::fcntl(fd, libc::F_SETFD, flags & !libc::FD_CLOEXEC) < 0 {
+                        return Err(std::io::Error::last_os_error());
+                    }
+                    Ok(())
+                });
             }
         }
         let child = match cmd.spawn() {
