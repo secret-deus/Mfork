@@ -1,5 +1,7 @@
 # Mfork Android 設計
 
+> 0.1.11：Mfork 使用獨立內核進程，因此構建時以 Go overlay 關閉 CMFA 默認的 embedded mode，恢復帶認證的配置 PUT/PATCH 接口。保留 CMFA 的非 root TUN 支持；詳見 [0.1.11](releases/0.1.11.md)。
+
 > 0.1.10 實機修正：Android 必須使用帶 `with_gvisor,cmfa` 標籤的固定版本內核，不能使用通用 Android 發行二進制；後者讀取 `packages.xml` 會因普通應用權限不足而令 TUN 啟動失敗。`node scripts/fetch-core.mjs --android arm64` 已改為從固定提交構建，需要 Git 和 Go（已驗證 Go 1.24.1）。Android fd 模式固定 gVisor，啟動時額外核查內核 TUN 狀態。診斷與驗證證據見 [0.1.10](releases/0.1.10.md)；下文早期設計若有衝突，以此修正為準。
 
 桌面版（見 `DESIGN.md`）的 Android 移植。目標是同一個倉庫、同一套 React 界面與 Rust 業務邏輯，加上一層 Kotlin 的 VpnService 與內核宿主，產出可上架側載的 APK。
