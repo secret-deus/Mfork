@@ -452,6 +452,28 @@ fn core_start_inner(app: &AppHandle) -> Result<ApiInfo, String> {
     }
     drop(child_guard);
 
+    // Android's system VPN can be up even when the core's TUN listener fails.
+    // Retain startup evidence independently of the later controller WebSocket.
+    #[cfg(target_os = "android")]
+    if let Some(fd) = tun_fd {
+        let startup_dir = log_dir.clone();
+        let stack = settings.tun.stack.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_secs(2));
+            let inherited = std::fs::read_link(format!("/proc/{pid}/fd/{fd}"));
+            eprintln!("[MforkTun] pid={pid} fd={fd} stack={stack} inherited={inherited:?}");
+            for name in ["core.log", "core.err.log"] {
+                if let Ok(text) = std::fs::read_to_string(startup_dir.join(name)) {
+                    // Only TUN startup diagnostics: do not publish subscription
+                    // contents, API secrets or unrelated connection history.
+                    for line in text.lines().filter(|line| line.to_ascii_lowercase().contains("tun" )).take(30) {
+                        eprintln!("[MforkTun] {line}");
+                    }
+                }
+            }
+        });
+    }
+
     // wait until the external controller answers (max ~8s)
     let wait = if first_start { 60 } else { 8 };
     let deadline = Instant::now() + Duration::from_secs(wait);
@@ -472,6 +494,31 @@ fn core_start_inner(app: &AppHandle) -> Result<ApiInfo, String> {
             ));
         }
         std::thread::sleep(Duration::from_millis(150));
+    }
+
+    // Controller readiness does not imply TUN readiness. The upstream core
+    // keeps serving its API after a listener initialization failure.
+    #[cfg(target_os = "android")]
+    if tun_fd.is_some() {
+        let client = reqwest::blocking::Client::builder().no_proxy()
+            .timeout(Duration::from_secs(1)).build().map_err(|e| e.to_string())?;
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            let config = client.get(format!("http://127.0.0.1:{api_port}/configs"))
+                .bearer_auth(&secret).send().and_then(|r| r.error_for_status())
+                .and_then(|r| r.json::<serde_json::Value>());
+            if config.ok().and_then(|c| c["tun"]["enable"].as_bool()) == Some(true) {
+                break;
+            }
+            let startup = std::fs::read_to_string(log_dir.join("core.log")).unwrap_or_default();
+            let failure = startup.lines().find(|l| l.contains("Start TUN listening error"));
+            if failure.is_some() || Instant::now() >= deadline {
+                let reason = failure.unwrap_or("TUN listener did not become ready within 10s").to_owned();
+                let _ = core_stop_inner(app, &state);
+                return Err(format!("VPN startup failed: {reason}"));
+            }
+            std::thread::sleep(Duration::from_millis(150));
+        }
     }
 
     let info = ApiInfo {

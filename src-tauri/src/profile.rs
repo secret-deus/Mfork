@@ -449,6 +449,9 @@ pub fn inject_managed(
         tun.insert("enable".into(), true.into());
         tun.insert("stack".into(), s.tun.stack.as_str().into());
         if let Some(fd) = tun_fd {
+            // Android owns the interface addresses. The system/mixed TCP
+            // forwarder instead binds the core's fake-IP-derived address.
+            tun.insert("stack".into(), "gvisor".into());
             // the OS VPN service owns the device, addresses and routes
             tun.insert("file-descriptor".into(), fd.into());
             tun.insert("auto-route".into(), false.into());
@@ -599,6 +602,7 @@ mod tests {
         let out = inject_managed(yaml("dns: {enable: false}\nproxies: []"), &s, 1, "x", 2, Some(7));
         let tun = get(&out, "tun").unwrap();
         assert_eq!(tun["file-descriptor"].as_i64(), Some(7));
+        assert_eq!(tun["stack"].as_str(), Some("gvisor"));
         assert_eq!(tun["dns-hijack"][0].as_str(), Some("any:53"));
         assert_eq!(tun["auto-route"].as_bool(), Some(false));
         assert_eq!(tun["auto-detect-interface"].as_bool(), Some(false));

@@ -658,16 +658,16 @@ function TunSection() {
         label={t("协议栈")}
         right={
           <Sel
-            value={tun?.stack ?? "mixed"}
-            options={[
+            value={IS_DESKTOP ? (tun?.stack ?? "mixed") : "gvisor"}
+            options={IS_DESKTOP ? [
               { value: "mixed", label: "Mixed" },
               { value: "gvisor", label: "gVisor" },
               { value: "system", label: "System" },
-            ]}
+            ] : [{ value: "gvisor", label: "gVisor" }]}
             onChange={(v) => {
               if (tun) void applyHot({ tun: { ...tun, stack: v as typeof tun.stack } });
             }}
-            disabled={!tun}
+            disabled={!tun || !IS_DESKTOP}
           />
         }
       />
