@@ -109,6 +109,49 @@ pub fn bundled_binary(app: &AppHandle) -> Result<PathBuf, String> {
     ))
 }
 
+/// Android: copy the geo databases packaged in the APK into the core's
+/// working dir when they are missing (or a new app version shipped bigger
+/// ones). Elsewhere the core downloads them itself.
+fn seed_geodata(dir: &PathBuf) {
+    #[cfg(target_os = "android")]
+    {
+        let Ok(lib) = native_lib_dir() else { return };
+        for (packaged, name) in [("libgeoip_metadb.so", "geoip.metadb"), ("libgeosite_dat.so", "geosite.dat")] {
+            let src = lib.join(packaged);
+            let dst = dir.join(name);
+            let Ok(sm) = std::fs::metadata(&src) else { continue };
+            let same = std::fs::metadata(&dst).map(|d| d.len() == sm.len()).unwrap_or(false);
+            if !same {
+                let _ = std::fs::copy(&src, &dst);
+            }
+        }
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = dir;
+    }
+}
+
+/// Tail of the core's stdout / stderr files, for the UI's error state.
+#[tauri::command]
+pub fn core_log_tail(app: AppHandle, lines: usize) -> Result<String, String> {
+    let dir = data_dir(&app)?;
+    let mut out = String::new();
+    for name in ["core.err.log", "core.log"] {
+        let text = std::fs::read_to_string(dir.join(name)).unwrap_or_default();
+        let tail: Vec<&str> = text.lines().rev().take(lines).collect();
+        if tail.is_empty() {
+            continue;
+        }
+        out.push_str(&format!("── {name}\n"));
+        for l in tail.iter().rev() {
+            out.push_str(l);
+            out.push('\n');
+        }
+    }
+    Ok(out)
+}
+
 fn data_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app
         .path()
@@ -169,6 +212,9 @@ pub fn core_start(app: AppHandle, state: State<'_, CoreState>) -> Result<ApiInfo
     let secret = random_secret();
 
     let config_path = crate::profile::generate_config(&app, api_port, &secret, mixed_port)?;
+    seed_geodata(&dir);
+    // first start may still have to fetch a geo file the profile needs
+    let first_start = !dir.join("geoip.metadb").exists();
 
     // clean up whatever ran before, regardless of mode
     if let Some(mut c) = child_guard.take() {
@@ -220,7 +266,8 @@ pub fn core_start(app: AppHandle, state: State<'_, CoreState>) -> Result<ApiInfo
     drop(child_guard);
 
     // wait until the external controller answers (max ~8s)
-    let deadline = Instant::now() + Duration::from_secs(8);
+    let wait = if first_start { 60 } else { 8 };
+    let deadline = Instant::now() + Duration::from_secs(wait);
     loop {
         if TcpStream::connect_timeout(
             &format!("127.0.0.1:{api_port}").parse().unwrap(),
@@ -233,7 +280,7 @@ pub fn core_start(app: AppHandle, state: State<'_, CoreState>) -> Result<ApiInfo
         if Instant::now() > deadline {
             let _ = core_stop_inner(&app, &state);
             return Err(format!(
-                "mihomo (pid {pid}) did not open the API port within 8s — see core.err.log in {}",
+                "mihomo (pid {pid}) did not open the API port within {wait}s — see core.err.log in {}",
                 log_dir.display()
             ));
         }

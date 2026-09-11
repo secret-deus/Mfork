@@ -472,6 +472,17 @@ pub fn inject_managed(
         doc.insert("dns".into(), Value::Mapping(dns));
     }
 
+    // geo databases: a CDN that is reachable where raw GitHub is not,
+    // unless the profile brings its own sources
+    if !doc.contains_key("geox-url") {
+        let base = "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release";
+        let mut g = Mapping::new();
+        g.insert("geoip".into(), format!("{base}/geoip.dat").into());
+        g.insert("geosite".into(), format!("{base}/geosite.dat").into());
+        g.insert("mmdb".into(), format!("{base}/geoip.metadb").into());
+        g.insert("asn".into(), format!("{base}/GeoLite2-ASN.mmdb").into());
+        doc.insert("geox-url".into(), Value::Mapping(g));
+    }
     if !doc.contains_key("mode") {
         doc.insert("mode".into(), "rule".into());
     }
@@ -554,6 +565,7 @@ mod tests {
         assert!(dns.get("fallback").is_none());
         assert_eq!(get(&out, "bind-address").unwrap().as_str(), Some("*"));
         // defaults filled in for a bare profile
+        assert!(get(&out, "geox-url").unwrap()["mmdb"].as_str().unwrap().contains("geoip.metadb"));
         assert_eq!(get(&out, "mode").unwrap().as_str(), Some("rule"));
         assert_eq!(get(&out, "log-level").unwrap().as_str(), Some("info"));
     }

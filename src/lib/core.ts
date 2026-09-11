@@ -16,6 +16,8 @@ export interface CoreStatus {
 export const coreStart = () => invoke<ApiInfo>("core_start");
 export const coreStop = () => invoke<boolean>("core_stop");
 export const coreStatus = () => invoke<CoreStatus>("core_status");
+/** last lines of core.err.log / core.log, for diagnosing a failed start */
+export const coreLogTail = (lines = 60) => invoke<string>("core_log_tail", { lines });
 
 export const apiUrl = (api: ApiInfo, path: string) =>
   `http://127.0.0.1:${api.port}${path}`;

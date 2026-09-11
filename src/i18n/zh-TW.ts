@@ -18,6 +18,9 @@ const zhTW: Record<string, string> = {
   "Mfork · 日志 Logs": "Mfork · 日誌 Logs",
   "Mfork · 设置 Settings": "Mfork · 設定 Settings",
   "更多": "更多",
+  "查看内核日志": "檢視內核日誌",
+  "收起内核日志": "收起內核日誌",
+  "内核日志为空": "內核日誌為空",
   "内核运行中": "內核運行中",
   "内核未运行": "內核未運行",
 

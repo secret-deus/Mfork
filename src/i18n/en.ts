@@ -18,6 +18,9 @@ const en: Record<string, string> = {
   "Mfork · 日志 Logs": "Mfork · Logs",
   "Mfork · 设置 Settings": "Mfork · Settings",
   "更多": "More",
+  "查看内核日志": "Show core log",
+  "收起内核日志": "Hide core log",
+  "内核日志为空": "Core log is empty",
   "内核运行中": "Core running",
   "内核未运行": "Core not running",
 

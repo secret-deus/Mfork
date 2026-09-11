@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useApp } from "../store";
 import { IS_DESKTOP } from "../lib/platform";
-import { apiGet, formatBytes, formatRate, serviceStatus, type AppSettings, type ServiceStatus } from "../lib/core";
+import { apiGet, coreLogTail, formatBytes, formatRate, serviceStatus, type AppSettings, type ServiceStatus } from "../lib/core";
 import { useT } from "../i18n";
 import Globe, { GlobeNode, GlobeRoute } from "../components/Globe";
 import { locateNode, locateNodeDetail, locateSelfDetail } from "../lib/geo";
@@ -248,6 +248,16 @@ export default function Overview() {
 
   // TUN needs the elevated service; the switch mirrors the one in Settings
   const [svc, setSvc] = useState<ServiceStatus | null>(null);
+  const [coreLog, setCoreLog] = useState<string | null>(null);
+  const toggleCoreLog = async () => {
+    if (coreLog !== null) return setCoreLog(null);
+    try {
+      const text = await coreLogTail(60);
+      setCoreLog(text.trim() || t("内核日志为空"));
+    } catch (e) {
+      setCoreLog(String(e));
+    }
+  };
   useEffect(() => {
     void serviceStatus().then(setSvc, () => setSvc(null));
   }, [phase]);
@@ -387,7 +397,17 @@ export default function Overview() {
           </div>
         ) : null}
         {error ? (
-          <div className="text-[13px] text-err select-text">{error}</div>
+          <div className="flex flex-col gap-2">
+            <div className="text-[13px] text-err select-text">{error}</div>
+            <button onClick={() => void toggleCoreLog()} className="self-start text-[12px] text-mut hover:text-fg">
+              {coreLog !== null ? t("收起内核日志") : t("查看内核日志")}
+            </button>
+            {coreLog !== null ? (
+              <pre className="max-h-56 overflow-auto rounded-[10px] border border-line-soft bg-surface p-3 font-sg text-[11px] leading-relaxed whitespace-pre-wrap break-all text-fg-3 select-text">
+                {coreLog}
+              </pre>
+            ) : null}
+          </div>
         ) : null}
         <div className="flex items-center gap-2.5">
           <span

@@ -80,6 +80,8 @@ android {
     packaging {
         jniLibs {
             useLegacyPackaging = true
+            // geo databases packaged as lib*.so are not ELF: keep strip away
+            keepDebugSymbols += setOf("**/libgeoip_metadb.so", "**/libgeosite_dat.so")
         }
     }
 }

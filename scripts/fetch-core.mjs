@@ -53,6 +53,21 @@ if (android) {
   writeFileSync(so, gunzipSync(buf));
   writeFileSync(join(jni, "libmihomo.VERSION"), release.tag_name + "\n");
   console.log(`OK: ${so} (${release.tag_name})`);
+
+  // Geo databases ship inside the APK (as every Android client does):
+  // the core would otherwise try to download them from GitHub on first
+  // start, which is slow or blocked on many phones. They ride along as
+  // "lib*.so" so the package manager extracts them next to libmihomo.so;
+  // core.rs copies them into the working dir on first start.
+  const GEO = "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest";
+  for (const [remote, local] of [["geoip.metadb", "libgeoip_metadb.so"], ["geosite.dat", "libgeosite_dat.so"]]) {
+    console.log(`Downloading ${remote}...`);
+    const r = await fetch(`${GEO}/${remote}`);
+    if (!r.ok) throw new Error(`${remote}: HTTP ${r.status}`);
+    const g = Buffer.from(await r.arrayBuffer());
+    writeFileSync(join(jni, local), g);
+    console.log(`OK: ${join(jni, local)} (${(g.length / 1048576).toFixed(1)} MB)`);
+  }
   process.exit(0);
 }
 
