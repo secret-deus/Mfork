@@ -74,10 +74,28 @@ const NAV = [
 
 type PageKey = (typeof NAV)[number]["key"];
 
+/** Phone bottom bar: four primary destinations, the rest behind "more". */
+const PRIMARY: PageKey[] = ["overview", "proxies", "profiles", "settings"];
+
+const IconMore = ({ size = 24 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+    <circle cx="5" cy="12" r="2" />
+    <circle cx="12" cy="12" r="2" />
+    <circle cx="19" cy="12" r="2" />
+  </svg>
+);
+
 export default function App() {
   const t = useT();
   const [page, setPage] = useState<PageKey>("overview");
+  const [moreOpen, setMoreOpen] = useState(false);
   const { phase, init } = useApp();
+  const primary = NAV.filter((n) => PRIMARY.includes(n.key));
+  const secondary = NAV.filter((n) => !PRIMARY.includes(n.key));
+  const go = (key: PageKey) => {
+    setPage(key);
+    setMoreOpen(false);
+  };
 
   useEffect(() => {
     void init();
@@ -94,12 +112,12 @@ export default function App() {
           <WindowControls />
         </div>
       ) : null}
-      {/* sidebar on desktop, bottom bar on phones */}
+      {/* desktop: icon sidebar with every page */}
       <aside
         data-tauri-drag-region
-        className={`z-10 flex w-full shrink-0 flex-row items-center justify-around border-t border-line-soft py-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] md:h-full md:w-16 md:flex-col md:justify-start md:gap-1 md:border-t-0 md:border-r md:pb-3.5 ${IS_MAC ? "md:pt-9" : "md:pt-3.5"}`}
+        className={`z-10 hidden h-full w-16 shrink-0 flex-col items-center gap-1 border-r border-line-soft pb-3.5 md:flex ${IS_MAC ? "pt-9" : "pt-3.5"}`}
       >
-        <div className="mb-4 hidden h-[30px] w-[30px] items-center justify-center rounded-[9px] bg-logo-bg text-logo-fg md:flex">
+        <div className="mb-4 flex h-[30px] w-[30px] items-center justify-center rounded-[9px] bg-logo-bg text-logo-fg">
           <ForkLogo />
         </div>
         {NAV.map((item) => (
@@ -116,14 +134,64 @@ export default function App() {
             <item.icon />
           </button>
         ))}
-        <div className="hidden flex-1 md:block" />
+        <div className="flex-1" />
         <span
-          className={`hidden h-[7px] w-[7px] rounded-full md:block ${
+          className={`block h-[7px] w-[7px] rounded-full ${
             phase === "running" ? "bg-ok" : phase === "error" ? "bg-err" : "bg-dim"
           }`}
           title={phase === "running" ? t("内核运行中") : t("内核未运行")}
         />
       </aside>
+
+      {/* phone: four primary tabs + "more" */}
+      <nav className="z-30 flex w-full shrink-0 items-stretch justify-around border-t border-line-soft bg-bg px-1 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] md:hidden">
+        {primary.map((item) => {
+          const active = page === item.key;
+          return (
+            <button
+              key={item.key}
+              onClick={() => go(item.key)}
+              className={`flex min-w-[64px] flex-col items-center gap-1 rounded-[12px] px-2 py-1.5 transition-colors ${
+                active ? "text-fg" : "text-dim"
+              }`}
+            >
+              <item.icon size={24} />
+              <span className={`text-[11px] leading-none ${active ? "text-fg" : "text-dim"}`}>{t(item.label)}</span>
+            </button>
+          );
+        })}
+        <button
+          onClick={() => setMoreOpen((v) => !v)}
+          className={`flex min-w-[64px] flex-col items-center gap-1 rounded-[12px] px-2 py-1.5 transition-colors ${
+            moreOpen || secondary.some((n) => n.key === page) ? "text-fg" : "text-dim"
+          }`}
+        >
+          <IconMore />
+          <span className="text-[11px] leading-none">{t("更多")}</span>
+        </button>
+      </nav>
+      {moreOpen ? (
+        <>
+          <div className="absolute inset-0 z-20 md:hidden" onClick={() => setMoreOpen(false)} />
+          <div className="absolute inset-x-3 bottom-[calc(72px+env(safe-area-inset-bottom))] z-30 grid grid-cols-4 gap-1 rounded-[16px] border border-line-soft bg-surface p-2 shadow-md md:hidden">
+            {secondary.map((item) => {
+              const active = page === item.key;
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => go(item.key)}
+                  className={`flex flex-col items-center gap-1.5 rounded-[12px] px-2 py-3 ${
+                    active ? "bg-nav-active text-fg" : "text-dim"
+                  }`}
+                >
+                  <item.icon size={24} />
+                  <span className="text-[11px] leading-none">{t(item.label)}</span>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      ) : null}
       <main className="min-h-0 min-w-0 flex-1">
         {page === "overview" ? (
           <Overview />

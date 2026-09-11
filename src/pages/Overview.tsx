@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useApp } from "../store";
+import { IS_DESKTOP } from "../lib/platform";
 import { apiGet, formatBytes, formatRate, serviceStatus, type AppSettings, type ServiceStatus } from "../lib/core";
 import { useT } from "../i18n";
 import Globe, { GlobeNode, GlobeRoute } from "../components/Globe";
@@ -262,7 +263,7 @@ export default function Overview() {
   return (
     <div className="relative flex h-full flex-col overflow-hidden px-5 md:px-14 pb-10 pt-6 md:pt-13">
       {/* globe on the right; drag to rotate, it drifts back home when released */}
-      <div className="absolute top-1/2 right-[6vh] h-[72vh] w-[72vh] -translate-y-1/2 select-none">
+      <div className="absolute top-[38%] -right-[45vw] h-[110vw] w-[110vw] -translate-y-1/2 select-none md:top-1/2 md:right-[6vh] md:h-[72vh] md:w-[72vh]">
         <Globe self={self.pos} nodes={globe.nodes} routes={routes} active={phase === "running"} />
       </div>
       <div className="relative z-10 flex items-center justify-between">
@@ -273,7 +274,7 @@ export default function Overview() {
       </div>
 
       <div className="relative z-10 mt-8 flex items-baseline gap-3.5">
-        <span className="font-sg text-[100px] leading-[0.9] font-light tracking-[-2px]">
+        <span className="font-sg text-[72px] leading-[0.9] font-light tracking-[-2px] md:text-[100px]">
           {phase === "running" ? dl.value : "0"}
         </span>
         <div className="flex flex-col gap-0.5">
@@ -289,8 +290,8 @@ export default function Overview() {
         <span className="cap2 !text-accent tracking-[2px]">{t("↑ 上传")}</span>
       </div>
 
-      <div className="relative z-10 mt-9 h-px w-[470px] bg-line" />
-      <div className="relative z-10 flex w-[470px]">
+      <div className="relative z-10 mt-9 h-px w-full max-w-[470px] bg-line" />
+      <div className="relative z-10 flex w-full max-w-[470px]">
         <div className="flex flex-1 flex-col gap-1.5 py-4">
           <span className="cap">{t("活动连接")}</span>
           <span className="font-sg text-[26px]">
@@ -312,9 +313,9 @@ export default function Overview() {
           </span>
         </div>
       </div>
-      <div className="relative z-10 h-px w-[470px] bg-line" />
+      <div className="relative z-10 h-px w-full max-w-[470px] bg-line" />
 
-      <div className="relative z-10 mt-6 flex items-center gap-6">
+      <div className="relative z-10 mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
         {MODES.map((m) => (
           <button
             key={m.key}
@@ -330,7 +331,7 @@ export default function Overview() {
           </button>
         ))}
         <div className="h-4 w-px bg-line" />
-        <button
+        {IS_DESKTOP ? <button
           onClick={() => void setSystemProxy(!(settings?.system_proxy ?? false))}
           disabled={!settings}
           className="flex items-center gap-2 pb-1.5 text-[14px] text-dim transition-colors hover:text-mut disabled:opacity-40"
@@ -341,7 +342,7 @@ export default function Overview() {
             }`}
           />
           <span className={settings?.system_proxy ? "text-fg" : undefined}>{t("系统代理")}</span>
-        </button>
+        </button> : null}
         <button
           onClick={() => void toggleTun()}
           disabled={!tunAvailable}
@@ -369,7 +370,7 @@ export default function Overview() {
 
       <div className="flex-1" />
 
-      <div className="relative z-10 flex w-[470px] flex-col gap-3">
+      <div className="relative z-10 flex w-full max-w-[470px] flex-col gap-3">
         {phase === "running" ? (
           <div className="flex flex-col gap-1.5">
             <div className="cap2">

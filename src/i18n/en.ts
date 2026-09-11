@@ -17,6 +17,7 @@ const en: Record<string, string> = {
   "Mfork · 规则 Rules": "Mfork · Rules",
   "Mfork · 日志 Logs": "Mfork · Logs",
   "Mfork · 设置 Settings": "Mfork · Settings",
+  "更多": "More",
   "内核运行中": "Core running",
   "内核未运行": "Core not running",
 

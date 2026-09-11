@@ -17,6 +17,7 @@ const zhTW: Record<string, string> = {
   "Mfork · 规则 Rules": "Mfork · 規則 Rules",
   "Mfork · 日志 Logs": "Mfork · 日誌 Logs",
   "Mfork · 设置 Settings": "Mfork · 設定 Settings",
+  "更多": "更多",
   "内核运行中": "內核運行中",
   "内核未运行": "內核未運行",
 
