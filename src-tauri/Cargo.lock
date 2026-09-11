@@ -2666,7 +2666,7 @@ dependencies = [
 
 [[package]]
 name = "mfork"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "boa_engine",
  "fastrand",
