@@ -172,10 +172,10 @@ export default function Connections() {
     `text-[13px] transition-colors ${on ? "text-fg font-semibold" : "text-mut hover:text-fg"}`;
 
   return (
-    <div className="flex h-full min-w-0 flex-col px-5 md:px-14 pb-6 pt-6 md:pt-13">
+    <div className="connections-page flex h-full min-w-0 flex-col px-4 md:px-14 pb-4 pt-5 md:pt-13">
       <div className="flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-baseline gap-5 whitespace-nowrap">
-          <div className="cap">{t("Mfork · 连接 Connections")}</div>
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-2">
+          <div className="w-full md:w-auto"><h1 className="text-xl font-semibold md:hidden">{t("连接")}</h1><span className="cap hidden md:inline">{t("Mfork · 连接 Connections")}</span></div>
           <span className="cap2">
             {t("活动")} <span className="font-sg text-[12px] text-fg">{all.length}</span>
           </span>
@@ -217,7 +217,7 @@ export default function Connections() {
         </div>
       </div>
 
-      <div className="mt-7 flex items-center gap-4 border-b border-line-strong pb-3">
+      <div className="connection-filters mt-4 flex flex-wrap items-center gap-3 border-b border-line-strong pb-3">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" className="text-mut">
           <circle cx="11" cy="11" r="7" />
           <path d="m21 21-4.3-4.3" />
@@ -226,9 +226,10 @@ export default function Connections() {
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder={t("搜索主机 / IP / 端口 / 进程 / 规则 / 节点")}
-          className="flex-1 bg-transparent text-[14px] outline-none placeholder:text-dim"
+          className="min-w-0 flex-1 bg-transparent text-[16px] outline-none placeholder:text-dim"
         />
-        <div className="flex items-center gap-3">
+        <div className="flex w-full min-w-0 items-center gap-3 overflow-x-auto whitespace-nowrap [scrollbar-width:none] md:w-auto [&>button]:shrink-0 [&>div]:shrink-0 [&>select]:shrink-0">
+        <div className="network-filter flex items-center gap-3">
           {(["all", "tcp", "udp"] as Net[]).map((n) => (
             <button key={n} onClick={() => setNet(n)} className={chip(net === n)}>
               {n === "all" ? t("全部") : n.toUpperCase()}
@@ -243,7 +244,7 @@ export default function Connections() {
         <select
           value={chain}
           onChange={(e) => setChain(e.target.value)}
-          className="bg-transparent text-[13px] text-mut outline-none hover:text-fg"
+          className="min-w-0 max-w-[180px] bg-transparent text-[13px] text-mut outline-none hover:text-fg"
         >
           <option value="all">{t("全部出站")}</option>
           {chains.map((c) => (
@@ -252,15 +253,52 @@ export default function Connections() {
             </option>
           ))}
         </select>
+        </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto">
+      <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
+        {phase === "running" ? <div className="space-y-3 py-3 md:hidden">
+          {view === "socket" ? items.map((c) => (
+            <article key={c.id} className="min-w-0 rounded-2xl border border-line-soft bg-surface p-4">
+              <div className="flex items-start gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="select-text text-[15px] font-semibold leading-6 [overflow-wrap:anywhere]">{hostOf(c)}</div>
+                  <div className="mt-1 text-xs text-mut">{c.metadata.network.toUpperCase()} · {formatDuration(c.start)}</div>
+                </div>
+                <button aria-label={t("关闭连接")} onClick={() => closeOne(c.id)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-line text-mut active:bg-err/10">×</button>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm tabular-nums">
+                <span className="text-ok">↓ {rate(c.downSpeed)}</span>
+                <span className="text-accent">↑ {rate(c.upSpeed)}</span>
+                <span className="text-dim">{formatBytes(c.download)} / {formatBytes(c.upload)}</span>
+              </div>
+              <div className="mt-2 text-sm text-mut [overflow-wrap:anywhere]">{[...c.chains].reverse().join(" → ") || c.rule}</div>
+              <details className="mt-3 border-t border-line-soft pt-1">
+                <summary className="cursor-pointer py-2 text-sm text-mut">{t("连接")} · {t("规则")} · {t("进程")}</summary>
+                <div className="grid min-w-0 grid-cols-1 gap-3 py-2 select-text">
+                  <Detail label={t("来源")} value={endpoint(c.metadata.sourceIP, c.metadata.sourcePort)} />
+                  <Detail label={t("目标")} value={endpoint(c.metadata.destinationIP, c.metadata.destinationPort)} />
+                  <Detail label={t("规则")} value={`${c.rule} ${c.rulePayload ?? ""}`} />
+                  <Detail label={t("进程")} value={c.metadata.processPath || procName(c)} />
+                  <Detail label={t("连接 ID")} value={c.id} />
+                </div>
+              </details>
+            </article>
+          )) : apps.map((a) => (
+            <article key={a.name} className="rounded-2xl border border-line-soft bg-surface p-4">
+              <div className="font-semibold [overflow-wrap:anywhere]">{a.name}</div>
+              <div className="mt-1 text-sm text-mut">{t("连接数")} {a.count}</div>
+              <div className="mt-3 flex flex-wrap gap-3 text-sm"><span className="text-ok">↓ {rate(a.downSpeed)}</span><span className="text-accent">↑ {rate(a.upSpeed)}</span></div>
+              <div className="mt-2 text-sm text-mut">{t("流量")} {formatBytes(a.down)} / {formatBytes(a.up)}</div>
+            </article>
+          ))}
+        </div> : null}
         {phase !== "running" ? (
           <div className="flex h-full items-center justify-center">
             <span className="cap">{t("内核未运行")}</span>
           </div>
         ) : view === "socket" ? (
-          <table className="w-full min-w-[960px] table-fixed border-collapse md:min-w-0">
+          <table className="hidden w-full table-fixed border-collapse md:table">
             <thead>
               <tr>
                 <Th label={t("主机")} k="host" sort={sort} onSort={onSort} width="19%" />
@@ -343,7 +381,7 @@ export default function Connections() {
             </tbody>
           </table>
         ) : (
-          <table className="w-full min-w-[960px] table-fixed border-collapse md:min-w-0">
+          <table className="hidden w-full table-fixed border-collapse md:table">
             <thead>
               <tr>
                 <th className={`${thBase} text-label`} style={{ width: "40%" }}>{t("应用")}</th>

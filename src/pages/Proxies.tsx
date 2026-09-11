@@ -32,7 +32,7 @@ const SORTS: { key: SortBy; label: string }[] = [
 
 export default function Proxies() {
   const t = useT();
-  const { api, phase, notify } = useApp();
+  const { api, phase, mode, notify } = useApp();
   const [groups, setGroups] = useState<ProxyGroup[]>([]);
   const [nodes, setNodes] = useState<Record<string, ProxyNode>>({});
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -77,12 +77,12 @@ export default function Proxies() {
   }, [api]);
 
   useEffect(() => {
-    if (phase === "running") void refresh();
+    if (phase === "running") void refresh().catch((e) => notify(String(e)));
     else {
       setGroups([]);
       setNodes({});
     }
-  }, [phase, refresh]);
+  }, [phase, refresh, notify]);
 
   const select = async (g: ProxyGroup, node: string) => {
     if (!api) return;
@@ -94,13 +94,10 @@ export default function Proxies() {
       await apiPut(api, `/proxies/${encodeURIComponent(g.name)}`, { name: node });
     } catch (e) {
       const msg = String(e);
-      notify(
-        msg.includes("400")
-          ? t("{type} 组由内核自动选择，不能手动切换", { type: g.type })
-          : t("切换节点失败: {msg}", { msg: msg.replace(/^Error:\s*/, "") }),
-      );
+      notify(t("切换节点失败: {msg}", { msg: msg.replace(/^Error:\s*/, "") }));
+      return;
     }
-    await refresh();
+    await refresh().catch((e) => notify(String(e)));
   };
 
   const testGroup = async (group: string) => {
@@ -115,13 +112,13 @@ export default function Proxies() {
       /* individual timeouts are expected */
     }
     setTesting(null);
-    await refresh();
+    await refresh().catch((e) => notify(String(e)));
   };
 
   return (
-    <div className="flex h-full min-w-0 flex-col px-5 md:px-14 pb-8 pt-6 md:pt-13">
+    <div className="proxy-page flex h-full min-w-0 flex-col px-4 md:px-14 pb-4 pt-5 md:pt-13">
       <div className="flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="cap">{t("Mfork · 代理 Proxies")}</div>
+        <div><h1 className="text-xl font-semibold md:hidden">{t("代理")}</h1><span className="cap hidden md:inline">{t("Mfork · 代理 Proxies")}</span></div>
         <div className="flex w-full items-center gap-5 overflow-x-auto whitespace-nowrap pb-1 [scrollbar-width:none] md:w-auto md:overflow-visible md:pb-0">
           <div className="flex shrink-0 items-center gap-3">
             <span className="cap2">{t("排序")}</span>
@@ -148,7 +145,7 @@ export default function Proxies() {
           </button>
           <div className="h-3.5 w-px bg-line" />
           <button
-            onClick={() => void refresh()}
+            onClick={() => void refresh().catch((e) => notify(String(e)))}
             className="text-[13px] text-mut hover:text-fg"
             disabled={phase !== "running"}
           >
@@ -156,6 +153,12 @@ export default function Proxies() {
           </button>
         </div>
       </div>
+
+      {phase === "running" && mode === "direct" ? (
+        <div role="status" className="mt-4 rounded-xl border border-line px-4 py-3 text-sm text-mut">
+          {t("直连模式 · 不经过节点")}
+        </div>
+      ) : null}
 
       <div className="mt-6 min-h-0 flex-1 overflow-y-auto">
         {phase !== "running" ? (
@@ -171,16 +174,16 @@ export default function Proxies() {
           groups.map((g) => {
             const open = expanded === g.name;
             return (
-              <div key={g.name} className="border-b border-line-soft">
+              <div key={g.name} className="proxy-group border-b border-line-soft">
                 <div
-                  className="flex cursor-pointer items-center justify-between gap-3 py-4"
+                  className="proxy-group-header flex cursor-pointer items-center justify-between gap-3 py-4"
                   onClick={() => setExpanded(open ? null : g.name)}
                 >
                   {/* phones: name on one line, meta + current node beneath;
                       desktop: everything on one baseline */}
                   <div className="min-w-0 flex-1">
                     <div className="flex min-w-0 items-baseline gap-3.5">
-                      <span className="truncate text-[15px] font-semibold text-fg-2 md:text-[16px]">
+                      <span className="[overflow-wrap:anywhere] text-[15px] font-semibold text-fg-2 md:truncate md:text-[16px]">
                         {g.name}
                       </span>
                       <span className="cap2 hidden md:inline">{g.type}</span>
@@ -219,9 +222,9 @@ export default function Proxies() {
                   </div>
                 </div>
                 {open ? (
-                  <div className="grid grid-cols-1 gap-x-12 pb-4 md:grid-cols-3">
+                  <div className="proxy-nodes grid grid-cols-1 gap-x-4 pb-4 md:grid-cols-2 xl:grid-cols-3">
                     {!selectable(g) ? (
-                      <div className="cap2 pb-1 md:col-span-3">
+                      <div className="cap2 col-span-full pb-1">
                         {t("{type} 组由内核自动选择，不能手动切换", { type: g.type })}
                       </div>
                     ) : null}
@@ -233,21 +236,23 @@ export default function Proxies() {
                         <button
                           key={name}
                           onClick={() => void select(g, name)}
-                          className={`flex items-center justify-between gap-3 border-b border-line-faint py-3 text-left ${
+                          className={`proxy-node min-w-0 flex items-center justify-between gap-3 border-b border-line-faint px-3 py-3 text-left ${selected ? "bg-accent/10 rounded-xl" : ""} ${
                             selectable(g) ? "" : "cursor-default"
                           }`}
                         >
-                          <span className="flex min-w-0 items-center gap-2.5">
+                          <span className="flex min-w-0 flex-1 items-center gap-2.5">
                             {selected ? (
                               <span className="block h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
                             ) : null}
-                            <span className={`truncate text-[14px] ${selected ? "text-fg" : "text-fg-3"}`}>
+                            <span className="min-w-0 flex-1">
+                            <span className={`block [overflow-wrap:anywhere] text-[14px] leading-6 ${selected ? "text-fg" : "text-fg-3"}`}>
                               {name}
                             </span>
-                            <span className="cap2 shrink-0">{n?.type ?? ""}</span>
+                            <span className="block text-xs leading-5 text-dim">{n?.type ?? ""}</span>
+                            </span>
                           </span>
                           <span className={`font-sg shrink-0 text-[15px] ${delayColor(d)}`}>
-                            {d && d > 0 ? d : "—"}
+                            {d && d > 0 ? `${d} ms` : "—"}
                           </span>
                         </button>
                       );

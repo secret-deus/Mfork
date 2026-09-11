@@ -106,6 +106,7 @@ body {
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 
+
 select option {
   background: var(--t-bg);
   color: var(--t-fg);
@@ -148,4 +149,20 @@ select option {
   letter-spacing: 1.5px;
   color: var(--t-label);
   text-transform: uppercase;
+}
+
+/* Phone layouts prioritize names and actions over desktop metadata columns. */
+@media (max-width: 767px) {
+  .cap { font-size: 14px; letter-spacing: .5px; }
+  .cap2 { font-size: 12px; letter-spacing: .2px; text-transform: none; }
+  .proxy-page button, .connections-page button { min-height: 44px; white-space: nowrap; }
+  .proxy-node { white-space: normal !important; }
+  .proxy-group { margin-bottom: 12px; padding: 0 12px; border: 1px solid var(--t-line-soft); border-radius: 16px; background: var(--t-surface); }
+  .proxy-group-header { gap: 8px; }
+  .proxy-nodes { gap: 4px; }
+  .connection-filters input { flex-basis: calc(100% - 32px); height: 44px; }
+  .connection-filters .network-filter { flex: 1 0 auto; }
+  .connection-filters select { height: 44px; }
+  .app-shell nav button { flex: 1; min-width: 0; min-height: 52px; }
+  .app-shell nav button span { font-size: 12px; line-height: 1.3; }
 }

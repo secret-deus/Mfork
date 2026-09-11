@@ -29,10 +29,10 @@ function Toast() {
   const dismiss = useApp((s) => s.dismissNotice);
   if (!notice) return null;
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-6 z-40 flex justify-center">
+    <div className="pointer-events-none absolute inset-x-0 bottom-[calc(80px+env(safe-area-inset-bottom))] z-40 flex justify-center px-4 md:bottom-6" role="status" aria-live="polite">
       <div
         onClick={dismiss}
-        className={`pointer-events-auto max-w-[60%] cursor-pointer select-text rounded-[10px] border border-line-soft bg-surface px-4 py-2.5 text-[13px] leading-snug shadow-md ${
+        className={`pointer-events-auto w-full min-w-0 max-w-lg max-h-[35dvh] overflow-y-auto [overflow-wrap:anywhere] cursor-pointer select-text rounded-[14px] border border-line-soft bg-surface px-4 py-3 text-[14px] leading-relaxed shadow-md ${
           notice.err ? "text-err" : "text-fg-2"
         }`}
       >
@@ -104,7 +104,7 @@ export default function App() {
   }, []);
 
   return (
-    <div className="relative flex h-full flex-col-reverse md:flex-row">
+    <div className="app-shell relative flex h-full min-w-0 flex-col-reverse md:flex-row">
       {/* frameless window: the top strip (and the sidebar background) drags the window */}
       {IS_DESKTOP ? <div data-tauri-drag-region className="absolute inset-x-0 top-0 z-20 h-8" /> : null}
       {IS_DESKTOP && !IS_MAC ? (

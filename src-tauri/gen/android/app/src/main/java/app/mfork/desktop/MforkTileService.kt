@@ -27,6 +27,9 @@ class MforkTileService : TileService() {
     refresh()
   }
 
+  // The Intent overload is used only below API 34; the PendingIntent overload
+  // does not exist on those versions. Lint currently flags the guarded branch.
+  @android.annotation.SuppressLint("StartActivityAndCollapseDeprecated")
   override fun onClick() {
     super.onClick()
     if (MforkVpnService.running) {
