@@ -1,3 +1,5 @@
+import mforkLogo from "../../design/mfork-logo.png";
+
 interface IconProps {
   size?: number;
 }
@@ -14,11 +16,7 @@ const base = (size: number) => ({
 });
 
 export const ForkLogo = ({ size = 16 }: IconProps) => (
-  <svg {...base(size)} strokeWidth={2}>
-    <path d="M3.5 12h5.5c2.2 0 3.2-1.6 4.6-3.2 1.3-1.5 2.4-2.3 4.4-2.3h2.5" />
-    <path d="M9 12c2.2 0 3.2 1.6 4.6 3.2 1.3 1.5 2.4 2.3 4.4 2.3h2.5" />
-    <circle cx="3.5" cy="12" r="1.5" fill="currentColor" stroke="none" />
-  </svg>
+  <img src={mforkLogo} width={size} height={size} alt="Mfork" className="rounded-[22%]" />
 );
 
 export const IconOverview = ({ size = 17 }: IconProps) => (
