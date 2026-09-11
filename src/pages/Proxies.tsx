@@ -20,6 +20,10 @@ function lastDelay(n: ProxyNode | undefined): number | undefined {
 
 type SortBy = "default" | "delay" | "name";
 
+/** groups the core lets the API pin a node on; LoadBalance / Relay answer HTTP 400 */
+const SELECTABLE = new Set(["Selector", "URLTest", "Fallback"]);
+const selectable = (g: ProxyGroup) => SELECTABLE.has(g.type);
+
 const SORTS: { key: SortBy; label: string }[] = [
   { key: "default", label: "默认" },
   { key: "delay", label: "延迟" },
@@ -80,12 +84,21 @@ export default function Proxies() {
     }
   }, [phase, refresh]);
 
-  const select = async (group: string, node: string) => {
+  const select = async (g: ProxyGroup, node: string) => {
     if (!api) return;
+    if (!selectable(g)) {
+      notify(t("{type} 组由内核自动选择，不能手动切换", { type: g.type }));
+      return;
+    }
     try {
-      await apiPut(api, `/proxies/${encodeURIComponent(group)}`, { name: node });
+      await apiPut(api, `/proxies/${encodeURIComponent(g.name)}`, { name: node });
     } catch (e) {
-      notify(t("切换节点失败: {msg}", { msg: String(e) }));
+      const msg = String(e);
+      notify(
+        msg.includes("400")
+          ? t("{type} 组由内核自动选择，不能手动切换", { type: g.type })
+          : t("切换节点失败: {msg}", { msg: msg.replace(/^Error:\s*/, "") }),
+      );
     }
     await refresh();
   };
@@ -160,22 +173,38 @@ export default function Proxies() {
             return (
               <div key={g.name} className="border-b border-line-soft">
                 <div
-                  className="flex cursor-pointer items-center justify-between py-4"
+                  className="flex cursor-pointer items-center justify-between gap-3 py-4"
                   onClick={() => setExpanded(open ? null : g.name)}
                 >
-                  <div className="flex items-baseline gap-3.5">
-                    <span className="text-[16px] font-semibold text-fg-2">{g.name}</span>
-                    <span className="cap2">{g.type}</span>
-                    <span className="cap2">{t("{n} nodes", { n: g.all.length })}</span>
+                  {/* phones: name on one line, meta + current node beneath;
+                      desktop: everything on one baseline */}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 items-baseline gap-3.5">
+                      <span className="truncate text-[15px] font-semibold text-fg-2 md:text-[16px]">
+                        {g.name}
+                      </span>
+                      <span className="cap2 hidden md:inline">{g.type}</span>
+                      <span className="cap2 hidden md:inline">{t("{n} nodes", { n: g.all.length })}</span>
+                    </div>
+                    <div className="mt-1 flex min-w-0 items-center gap-2 text-[12.5px] text-mut md:hidden">
+                      <span className="cap2 shrink-0">{g.type}</span>
+                      <span className="shrink-0">{t("{n} nodes", { n: g.all.length })}</span>
+                      {g.now ? (
+                        <>
+                          <span className="shrink-0 text-dim">·</span>
+                          <span className="truncate text-fg-3">{g.now}</span>
+                        </>
+                      ) : null}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-[13px] text-mut">{g.now}</span>
+                  <div className="flex shrink-0 items-center gap-3 md:gap-4">
+                    <span className="hidden max-w-[260px] truncate text-[13px] text-mut md:inline">{g.now}</span>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         void testGroup(g.name);
                       }}
-                      className="text-[13px] text-accent hover:text-fg disabled:opacity-50"
+                      className="shrink-0 whitespace-nowrap text-[13px] text-accent hover:text-fg disabled:opacity-50"
                       disabled={testing === g.name}
                     >
                       {testing === g.name ? t("测速中…") : t("测速")}
@@ -190,7 +219,12 @@ export default function Proxies() {
                   </div>
                 </div>
                 {open ? (
-                  <div className="grid grid-cols-3 gap-x-12 pb-4">
+                  <div className="grid grid-cols-1 gap-x-12 pb-4 md:grid-cols-3">
+                    {!selectable(g) ? (
+                      <div className="cap2 pb-1 md:col-span-3">
+                        {t("{type} 组由内核自动选择，不能手动切换", { type: g.type })}
+                      </div>
+                    ) : null}
                     {visibleNodes(g).map((name) => {
                       const n = nodes[name];
                       const d = lastDelay(n);
@@ -198,8 +232,10 @@ export default function Proxies() {
                       return (
                         <button
                           key={name}
-                          onClick={() => void select(g.name, name)}
-                          className="flex items-center justify-between border-b border-line-faint py-3 text-left"
+                          onClick={() => void select(g, name)}
+                          className={`flex items-center justify-between gap-3 border-b border-line-faint py-3 text-left ${
+                            selectable(g) ? "" : "cursor-default"
+                          }`}
                         >
                           <span className="flex min-w-0 items-center gap-2.5">
                             {selected ? (
