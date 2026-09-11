@@ -1,6 +1,6 @@
 [package]
 name = "mfork"
-version = "0.1.1"
+version = "0.1.2"
 description = "Mfork - a mihomo desktop client"
 authors = ["mfork"]
 edition = "2021"
