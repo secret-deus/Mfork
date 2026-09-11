@@ -85,7 +85,10 @@ pub struct AppSettings {
     pub mixed_port: u16,
     /// the port the last automatic start used; not user-facing
     pub last_mixed_port: u16,
-    /// settings schema version for one-time migrations (see `migrate`)
+    /// settings schema version for one-time migrations (see `migrate`).
+    /// Field-level default: the container default is `SCHEMA`, which
+    /// would make every pre-schema file look already migrated.
+    #[serde(default)]
     pub schema: u32,
     pub allow_lan: bool,
     pub ipv6: bool,
@@ -214,4 +217,30 @@ pub fn settings_set(app: AppHandle, mut settings: AppSettings) -> Result<(), Str
     }
     crate::tray::refresh(&app);
     r
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pre_schema_file_migrates() {
+        let mut s: AppSettings =
+            serde_json::from_str(r#"{"tun":{"enable":false},"theme":"light"}"#).unwrap();
+        assert_eq!(s.schema, 0, "missing schema must read as 0, not the container default");
+        assert!(migrate(&mut s));
+        assert_eq!(s.schema, SCHEMA);
+        assert_eq!(s.theme, "light");
+        if cfg!(target_os = "android") {
+            assert!(s.tun.enable);
+        }
+        assert!(!migrate(&mut s), "second pass is a no-op");
+    }
+
+    #[test]
+    fn fresh_defaults_are_current() {
+        let mut s = AppSettings::default();
+        assert_eq!(s.schema, SCHEMA);
+        assert!(!migrate(&mut s));
+    }
 }
