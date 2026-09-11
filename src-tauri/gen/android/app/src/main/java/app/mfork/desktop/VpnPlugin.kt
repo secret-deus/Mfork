@@ -21,6 +21,12 @@ class EstablishArgs {
   var session: String = "Mfork"
 }
 
+@InvokeArg
+class AttachArgs {
+  var port: Int = 0
+  var secret: String = ""
+}
+
 /**
  * Tauri mobile plugin "mfork-vpn": the bridge between the Rust core
  * manager and [MforkVpnService]. Called from Rust via run_mobile_plugin;
@@ -33,11 +39,11 @@ class VpnPlugin(private val activity: Activity) : Plugin(activity) {
 
   override fun load(webView: WebView) {
     this.webView = webView
-    MforkVpnService.onRevoked = {
+    MforkVpnService.onStopped = { reason ->
       // no plugin event channel needed: poke the page directly
       activity.runOnUiThread {
         this.webView?.evaluateJavascript(
-          "window.dispatchEvent(new CustomEvent('mfork-vpn-revoked'))", null
+          "window.dispatchEvent(new CustomEvent('mfork-vpn-stopped', {detail: '$reason'}))", null
         )
       }
     }
@@ -90,6 +96,14 @@ class VpnPlugin(private val activity: Activity) : Plugin(activity) {
     } else {
       activity.startService(intent)
     }
+  }
+
+  /** The core's API is up: let the service mirror its traffic into the notification. */
+  @Command
+  fun attachCore(invoke: Invoke) {
+    val args = invoke.parseArgs(AttachArgs::class.java)
+    MforkVpnService.attachCore(args.port, args.secret)
+    invoke.resolve()
   }
 
   @Command

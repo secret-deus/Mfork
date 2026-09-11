@@ -555,7 +555,7 @@ function TunSection() {
 
   const tun = settings?.tun;
   return (
-    <Sect title={t("TUN 模式")}>
+    <Sect title={IS_DESKTOP ? t("TUN 模式") : t("服务模式")}>
       {IS_DESKTOP ? <Row
         label={t("系统服务")}
         sub={
@@ -586,10 +586,12 @@ function TunSection() {
         }
       /> : null}
       <Row
-        label={t("启用 TUN")}
+        label={IS_DESKTOP ? t("启用 TUN") : t("VPN 模式")}
         sub={
           !IS_DESKTOP
-            ? t("以系统 VPN 接管全部流量；首次开启会弹出系统授权")
+            ? tun?.enable
+              ? t("接管全部应用的流量（系统 VPN）")
+              : t("仅代理模式：在 Wi-Fi 详情把代理指向 127.0.0.1 与混合端口")
             : svc?.reachable
               ? t("虚拟网卡接管全局流量；与其他代理客户端的 TUN/系统代理互斥")
               : t("需先安装系统服务")
@@ -621,7 +623,7 @@ function TunSection() {
           />
         }
       />
-      <Row
+      {IS_DESKTOP ? <Row
         label={t("严格路由")}
         right={
           <Toggle
@@ -632,7 +634,7 @@ function TunSection() {
             disabled={!tun}
           />
         }
-      />
+      /> : null}
       <Row
         label={t("DNS 劫持")}
         sub={t("接管发往任意 53 端口的查询")}

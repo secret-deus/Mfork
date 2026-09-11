@@ -359,6 +359,10 @@ fn core_start_inner(app: &AppHandle) -> Result<ApiInfo, String> {
             .as_millis(),
     };
     *state.api.lock().unwrap() = Some(info.clone());
+    #[cfg(target_os = "android")]
+    if tun_fd.is_some() {
+        crate::vpn::attach_core(app, api_port, &info.secret);
+    }
 
     // the mixed port may have changed: re-point the OS proxy at it
     if let Err(e) = crate::system::sync_system_proxy(&app) {

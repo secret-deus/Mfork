@@ -378,10 +378,12 @@ export const useApp = create<AppState>((set, get) => {
     await listen<string>("sys-proxy-error", (e) => {
       get().notify(e.payload);
     });
-    // Android: the system (or another VPN app) revoked our VPN
+    // Android: the VPN went away without us asking — revoked by the
+    // system / another VPN app, or stopped from the notification or tile
     if (IS_ANDROID) {
-      window.addEventListener("mfork-vpn-revoked", () => {
-        get().notify(t("VPN 已被系统断开，内核已停止"));
+      window.addEventListener("mfork-vpn-stopped", (e) => {
+        const reason = (e as CustomEvent<string>).detail;
+        if (reason === "revoked") get().notify(t("VPN 已被系统断开，内核已停止"));
         void get().stop();
       });
     }

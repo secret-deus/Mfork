@@ -35,7 +35,9 @@ pub struct TunSettings {
 impl Default for TunSettings {
     fn default() -> Self {
         Self {
-            enable: false,
+            // Android: VPN mode is what every client does out of the box;
+            // desktop TUN needs the elevated service, so it stays opt-in
+            enable: cfg!(target_os = "android"),
             stack: "mixed".into(),
             auto_route: true,
             strict_route: true,

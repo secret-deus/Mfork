@@ -10,6 +10,11 @@ import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.util.Log
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.net.HttpURLConnection
+import java.net.URL
+import org.json.JSONObject
 
 /**
  * Owns the TUN interface. The core itself is a child process of the app
@@ -17,8 +22,11 @@ import android.util.Log
  * the raw fd back through [onEstablished], and keeps a foreground
  * notification alive while the VPN is up (docs/ANDROID.md, decision 2).
  *
- * The app excludes itself from the VPN (addDisallowedApplication), so
- * every socket the core opens bypasses the tunnel without protect().
+ * Once the core is up, Rust calls [attachCore]; a reader thread follows
+ * the core's `/traffic` stream and mirrors the speed into the
+ * notification, independent of the WebView (which may be frozen in the
+ * background). The notification's "断开" action and the quick-settings
+ * tile stop the VPN and tell the page through [onStopped].
  */
 class MforkVpnService : VpnService() {
   companion object {
@@ -27,30 +35,47 @@ class MforkVpnService : VpnService() {
     const val EXTRA_MTU = "mtu"
     const val EXTRA_IPV6 = "ipv6"
     const val EXTRA_SESSION = "session"
+    /** the stop came from the user (notification / tile), not from Rust */
+    const val EXTRA_FROM_USER = "fromUser"
     private const val TAG = "MforkVpn"
     private const val CHANNEL = "mfork-vpn"
     private const val NOTIFICATION_ID = 1
 
     /** Set by the plugin before starting the service; called once with (fd, null) or (null, error). */
     @Volatile var onEstablished: ((Int?, String?) -> Unit)? = null
-    /** The system (or another VPN app) took the VPN away. */
-    @Volatile var onRevoked: (() -> Unit)? = null
+    /** VPN went away without Rust asking: "revoked" (system) or "user" (notification / tile). */
+    @Volatile var onStopped: ((String) -> Unit)? = null
     @Volatile var running = false
       private set
+    @Volatile private var instance: MforkVpnService? = null
+
+    /** Called (via the plugin) once the core's API is reachable. */
+    fun attachCore(port: Int, secret: String) {
+      instance?.startTrafficReader(port, secret)
+    }
   }
 
   private var tun: ParcelFileDescriptor? = null
+  private var session = "Mfork"
+  @Volatile private var reader: Thread? = null
+
+  override fun onCreate() {
+    super.onCreate()
+    instance = this
+  }
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
     if (intent?.action == ACTION_STOP) {
+      val fromUser = intent.getBooleanExtra(EXTRA_FROM_USER, false)
       teardown()
+      if (fromUser) onStopped?.invoke("user")
       return START_NOT_STICKY
     }
     val mtu = intent?.getIntExtra(EXTRA_MTU, 1500) ?: 1500
     val ipv6 = intent?.getBooleanExtra(EXTRA_IPV6, false) ?: false
-    val session = intent?.getStringExtra(EXTRA_SESSION) ?: "Mfork"
+    session = intent?.getStringExtra(EXTRA_SESSION) ?: "Mfork"
 
-    startForegroundCompat(session)
+    startForegroundCompat(buildNotification("VPN 已连接"))
     try {
       val builder = Builder()
         .setSession(session)
@@ -76,6 +101,7 @@ class MforkVpnService : VpnService() {
       tun?.close()
       tun = pfd
       running = true
+      MforkTileService.requestUpdate(this)
       Log.i(TAG, "tun established fd=${pfd.fd} mtu=$mtu ipv6=$ipv6")
       val cb = onEstablished
       onEstablished = null
@@ -94,16 +120,19 @@ class MforkVpnService : VpnService() {
   override fun onRevoke() {
     Log.w(TAG, "VPN revoked by the system")
     teardown()
-    onRevoked?.invoke()
+    onStopped?.invoke("revoked")
   }
 
   override fun onDestroy() {
     teardown()
+    instance = null
     super.onDestroy()
   }
 
   private fun teardown() {
     running = false
+    reader?.interrupt()
+    reader = null
     try {
       tun?.close()
     } catch (_: Exception) {
@@ -116,9 +145,78 @@ class MforkVpnService : VpnService() {
       stopForeground(true)
     }
     stopSelf()
+    MforkTileService.requestUpdate(this)
   }
 
-  private fun startForegroundCompat(session: String) {
+  // ------------------------------------------------------------ traffic → notification
+
+  private fun startTrafficReader(port: Int, secret: String) {
+    reader?.interrupt()
+    val t = Thread {
+      var conn: HttpURLConnection? = null
+      try {
+        conn = (URL("http://127.0.0.1:$port/traffic").openConnection() as HttpURLConnection).apply {
+          setRequestProperty("Authorization", "Bearer $secret")
+          connectTimeout = 3000
+          readTimeout = 0
+        }
+        BufferedReader(InputStreamReader(conn.inputStream)).use { br ->
+          while (!Thread.currentThread().isInterrupted && running) {
+            val line = br.readLine() ?: break
+            if (line.isBlank()) continue
+            val j = JSONObject(line)
+            val text = "↓ ${rate(j.optLong("down"))}   ↑ ${rate(j.optLong("up"))}"
+            getSystemService(NotificationManager::class.java)
+              .notify(NOTIFICATION_ID, buildNotification(text))
+          }
+        }
+      } catch (e: Exception) {
+        if (running) Log.w(TAG, "traffic reader ended: $e")
+      } finally {
+        conn?.disconnect()
+      }
+    }
+    t.isDaemon = true
+    t.name = "mfork-traffic"
+    reader = t
+    t.start()
+  }
+
+  private fun rate(bps: Long): String = when {
+    bps < 1024 -> "$bps B/s"
+    bps < 1024 * 1024 -> String.format("%.0f KB/s", bps / 1024.0)
+    bps < 1024L * 1024 * 1024 -> String.format("%.1f MB/s", bps / 1048576.0)
+    else -> String.format("%.2f GB/s", bps / 1073741824.0)
+  }
+
+  // ------------------------------------------------------------ notification
+
+  private fun buildNotification(text: String): Notification {
+    val open = PendingIntent.getActivity(
+      this, 0,
+      Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+      PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+    )
+    val stop = PendingIntent.getService(
+      this, 1,
+      Intent(this, MforkVpnService::class.java).setAction(ACTION_STOP).putExtra(EXTRA_FROM_USER, true),
+      PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+    )
+    val b = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, CHANNEL)
+    else @Suppress("DEPRECATION") Notification.Builder(this)
+    b.setSmallIcon(R.mipmap.ic_launcher)
+      .setContentTitle("Mfork · $session")
+      .setContentText(text)
+      .setContentIntent(open)
+      .setOngoing(true)
+      .setOnlyAlertOnce(true)
+      .setCategory(Notification.CATEGORY_SERVICE)
+    @Suppress("DEPRECATION")
+    b.addAction(Notification.Action.Builder(null, "断开", stop).build())
+    return b.build()
+  }
+
+  private fun startForegroundCompat(notification: Notification) {
     val nm = getSystemService(NotificationManager::class.java)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       nm.createNotificationChannel(
@@ -127,21 +225,6 @@ class MforkVpnService : VpnService() {
         }
       )
     }
-    val open = PendingIntent.getActivity(
-      this, 0,
-      Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
-      PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-    )
-    val notification: Notification = (
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, CHANNEL)
-      else @Suppress("DEPRECATION") Notification.Builder(this)
-      )
-      .setSmallIcon(R.mipmap.ic_launcher)
-      .setContentTitle("Mfork")
-      .setContentText("$session · VPN 已连接")
-      .setContentIntent(open)
-      .setOngoing(true)
-      .build()
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
       startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
     } else {

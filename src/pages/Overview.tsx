@@ -353,19 +353,25 @@ export default function Overview() {
           />
           <span className={settings?.system_proxy ? "text-fg" : undefined}>{t("系统代理")}</span>
         </button> : null}
-        <button
-          onClick={() => void toggleTun()}
-          disabled={!tunAvailable}
-          title={tunAvailable ? (tunOn ? t("关闭 TUN") : t("启用 TUN")) : t("需先安装系统服务")}
-          className="flex items-center gap-2 pb-1.5 text-[14px] text-dim transition-colors hover:text-mut disabled:opacity-40"
-        >
-          <span className={`block h-1.5 w-1.5 rounded-full ${tunOn ? "bg-ok" : "bg-faint"}`} />
-          <span className={tunOn ? "text-fg" : undefined}>TUN</span>
-        </button>
-        <div className="h-4 w-px bg-line" />
+        {/* desktop: TUN is a separate switch next to the system proxy; on
+            phones connecting *is* the VPN (service mode lives in settings) */}
+        {IS_DESKTOP ? (
+          <>
+            <button
+              onClick={() => void toggleTun()}
+              disabled={!tunAvailable}
+              title={tunAvailable ? (tunOn ? t("关闭 TUN") : t("启用 TUN")) : t("需先安装系统服务")}
+              className="flex items-center gap-2 pb-1.5 text-[14px] text-dim transition-colors hover:text-mut disabled:opacity-40"
+            >
+              <span className={`block h-1.5 w-1.5 rounded-full ${tunOn ? "bg-ok" : "bg-faint"}`} />
+              <span className={tunOn ? "text-fg" : undefined}>TUN</span>
+            </button>
+            <div className="h-4 w-px bg-line" />
+          </>
+        ) : null}
         {phase === "running" ? (
           <button onClick={stop} className="text-[13px] text-mut hover:text-fg">
-            {t("停止内核")}
+            {IS_DESKTOP ? t("停止内核") : t("断开连接")}
           </button>
         ) : (
           <button
@@ -373,7 +379,9 @@ export default function Overview() {
             disabled={phase === "starting"}
             className="text-[13px] text-accent hover:text-fg disabled:opacity-50"
           >
-            {phase === "starting" ? t("启动中…") : t("启动内核")}
+            {phase === "starting"
+              ? IS_DESKTOP ? t("启动中…") : t("连接中…")
+              : IS_DESKTOP ? t("启动内核") : t("开启连接")}
           </button>
         )}
       </div>

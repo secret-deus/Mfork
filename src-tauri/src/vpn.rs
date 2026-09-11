@@ -64,6 +64,22 @@ pub fn establish(app: &AppHandle, mtu: u32, ipv6: bool, session: &str) -> Result
         .map_err(|e| format!("建立 VPN 失败: {e}"))
 }
 
+#[derive(Serialize)]
+struct AttachArgs<'a> {
+    port: u16,
+    secret: &'a str,
+}
+
+/// Tell the service where the core's API is so the notification can show
+/// live traffic. Best effort.
+pub fn attach_core(app: &AppHandle, port: u16, secret: &str) {
+    if let Ok(h) = handle(app) {
+        let _ = h
+            .0
+            .run_mobile_plugin::<serde_json::Value>("attachCore", AttachArgs { port, secret });
+    }
+}
+
 pub fn stop(app: &AppHandle) {
     if let Ok(h) = handle(app) {
         let _ = h.0.run_mobile_plugin::<serde_json::Value>("stop", ());
