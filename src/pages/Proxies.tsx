@@ -107,10 +107,10 @@ export default function Proxies() {
 
   return (
     <div className="flex h-full min-w-0 flex-col px-5 md:px-14 pb-8 pt-6 md:pt-13">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
         <div className="cap">{t("Mfork · 代理 Proxies")}</div>
-        <div className="flex items-center gap-5">
-          <div className="flex items-center gap-3">
+        <div className="flex w-full items-center gap-5 overflow-x-auto whitespace-nowrap pb-1 [scrollbar-width:none] md:w-auto md:overflow-visible md:pb-0">
+          <div className="flex shrink-0 items-center gap-3">
             <span className="cap2">{t("排序")}</span>
             {SORTS.map((s) => (
               <button

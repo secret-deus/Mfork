@@ -192,7 +192,7 @@ export default function App() {
           </div>
         </>
       ) : null}
-      <main className="min-h-0 min-w-0 flex-1">
+      <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden">
         {page === "overview" ? (
           <Overview />
         ) : page === "proxies" ? (

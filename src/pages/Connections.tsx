@@ -173,8 +173,8 @@ export default function Connections() {
 
   return (
     <div className="flex h-full min-w-0 flex-col px-5 md:px-14 pb-6 pt-6 md:pt-13">
-      <div className="flex items-center justify-between">
-        <div className="flex items-baseline gap-5">
+      <div className="flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-baseline gap-5 whitespace-nowrap">
           <div className="cap">{t("Mfork · 连接 Connections")}</div>
           <span className="cap2">
             {t("活动")} <span className="font-sg text-[12px] text-fg">{all.length}</span>
@@ -186,8 +186,8 @@ export default function Connections() {
             {t("上传")} <span className="font-sg text-[12px] text-fg">{formatBytes(snap?.uploadTotal ?? 0)}</span>
           </span>
         </div>
-        <div className="flex items-center gap-6">
-          <div className="flex gap-4">
+        <div className="flex w-full items-center gap-6 overflow-x-auto whitespace-nowrap pb-1 [scrollbar-width:none] md:w-auto md:overflow-visible md:pb-0">
+          <div className="flex shrink-0 gap-4">
             <button
               onClick={() => setView("socket")}
               className={`border-b-2 pb-1 text-[13px] ${view === "socket" ? "border-accent text-fg" : "border-transparent text-mut hover:text-fg"}`}
@@ -254,13 +254,13 @@ export default function Connections() {
         </select>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto">
         {phase !== "running" ? (
           <div className="flex h-full items-center justify-center">
             <span className="cap">{t("内核未运行")}</span>
           </div>
         ) : view === "socket" ? (
-          <table className="w-full table-fixed border-collapse">
+          <table className="w-full min-w-[960px] table-fixed border-collapse md:min-w-0">
             <thead>
               <tr>
                 <Th label={t("主机")} k="host" sort={sort} onSort={onSort} width="19%" />
@@ -343,7 +343,7 @@ export default function Connections() {
             </tbody>
           </table>
         ) : (
-          <table className="w-full table-fixed border-collapse">
+          <table className="w-full min-w-[960px] table-fixed border-collapse md:min-w-0">
             <thead>
               <tr>
                 <th className={`${thBase} text-label`} style={{ width: "40%" }}>{t("应用")}</th>

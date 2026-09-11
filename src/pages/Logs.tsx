@@ -33,9 +33,9 @@ export default function Logs() {
 
   return (
     <div className="flex h-full min-w-0 flex-col px-5 md:px-14 pb-6 pt-6 md:pt-13">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
         <div className="cap">{t("Mfork · 日志 Logs")}</div>
-        <div className="flex items-center gap-5">
+        <div className="flex w-full items-center gap-5 overflow-x-auto whitespace-nowrap pb-1 [scrollbar-width:none] md:w-auto md:overflow-visible md:pb-0">
           {LEVELS.map((lv) => (
             <button
               key={lv}
@@ -47,14 +47,14 @@ export default function Logs() {
               {lv}
             </button>
           ))}
-          <div className="h-4 w-px bg-line" />
+          <div className="h-4 w-px shrink-0 bg-line" />
           <button
             onClick={() => setLogsPaused(!logsPaused)}
-            className={`text-[13px] ${logsPaused ? "text-warn" : "text-mut hover:text-fg"}`}
+            className={`shrink-0 text-[13px] ${logsPaused ? "text-warn" : "text-mut hover:text-fg"}`}
           >
             {logsPaused ? t("继续") : t("暂停")}
           </button>
-          <button onClick={clearLogs} className="text-[13px] text-mut hover:text-fg">
+          <button onClick={clearLogs} className="shrink-0 text-[13px] text-mut hover:text-fg">
             {t("清空")}
           </button>
         </div>
