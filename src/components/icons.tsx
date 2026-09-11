@@ -1,4 +1,4 @@
-import mforkLogo from "../../design/mfork-logo.png";
+import mforkLogo from "../../src-tauri/icons/128x128.png";
 
 interface IconProps {
   size?: number;
@@ -16,7 +16,7 @@ const base = (size: number) => ({
 });
 
 export const ForkLogo = ({ size = 16 }: IconProps) => (
-  <img src={mforkLogo} width={size} height={size} alt="Mfork" className="rounded-[22%]" />
+  <img src={mforkLogo} width={size} height={size} alt="Mfork" />
 );
 
 export const IconOverview = ({ size = 17 }: IconProps) => (

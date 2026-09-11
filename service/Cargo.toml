@@ -1,6 +1,6 @@
 [package]
 name = "mfork-service"
-version = "0.1.16"
+version = "0.1.17"
 edition = "2021"
 description = "Mfork elevated service: starts the mihomo core as SYSTEM for TUN mode"
 
