@@ -1,7 +1,8 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, rmdirSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
 
 // The generic Android release expects privileged access to packages.xml.
 // cmfa delegates package filtering to Android VpnService instead.
@@ -15,8 +16,21 @@ export function buildAndroidCore(arch, destination) {
   const dirty = execFileSync("git", ["status", "--porcelain"], { cwd: source, encoding: "utf8" }).trim();
   if (head !== COMMIT || dirty) throw new Error("Android core source must match the clean pinned upstream commit");
   mkdirSync(destination, { recursive: true });
-  execFileSync("go", ["build", "-mod=readonly", "-tags", "with_gvisor,cmfa", "-trimpath", "-ldflags", `-s -w -X github.com/metacubex/mihomo/constant.Version=${VERSION}-mfork`, "-o", join(destination, "libmihomo.so"), "."], {
-    cwd: source, stdio: "inherit", env: { ...process.env, GOOS: "android", GOARCH: arch, CGO_ENABLED: "0" },
-  });
-  writeFileSync(join(destination, "libmihomo.VERSION"), `${VERSION}-mfork\n${COMMIT}\ntags=with_gvisor,cmfa\n`);
+  const original = join(source, "hub", "route", "patch_android.go");
+  if (!readFileSync(original, "utf8").includes("SetEmbedMode(true)")) {
+    throw new Error("Upstream Android controller initialization changed; review the standalone overlay");
+  }
+  const replacement = join(dirname(fileURLToPath(import.meta.url)), "android-core", "patch_android.go");
+  const overlayDir = mkdtempSync(join(tmpdir(), "mfork-core-overlay-"));
+  const overlay = join(overlayDir, "overlay.json");
+  writeFileSync(overlay, JSON.stringify({ Replace: { [original]: replacement } }));
+  try {
+    execFileSync("go", ["build", "-overlay", overlay, "-mod=readonly", "-tags", "with_gvisor,cmfa", "-trimpath", "-ldflags", `-s -w -X github.com/metacubex/mihomo/constant.Version=${VERSION}-mfork`, "-o", join(destination, "libmihomo.so"), "."], {
+      cwd: source, stdio: "inherit", env: { ...process.env, GOOS: "android", GOARCH: arch, CGO_ENABLED: "0" },
+    });
+  } finally {
+    rmSync(overlay, { force: true });
+    rmdirSync(overlayDir);
+  }
+  writeFileSync(join(destination, "libmihomo.VERSION"), `${VERSION}-mfork\n${COMMIT}\ntags=with_gvisor,cmfa\noverlay=standalone-controller\n`);
 }

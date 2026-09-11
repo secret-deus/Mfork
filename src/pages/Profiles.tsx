@@ -52,6 +52,9 @@ export default function Profiles() {
       await refresh();
     } catch (e) {
       setError(String(e));
+      // Import can be persisted even if applying it fails. Show disk state
+      // so users do not import duplicates after a controller error.
+      await refresh().catch(() => {});
     } finally {
       setBusy(null);
     }
@@ -158,16 +161,16 @@ export default function Profiles() {
             const pct = p.sub && p.sub.total > 0 ? Math.min(100, (used / p.sub.total) * 100) : 0;
             return (
               <div key={p.id} className="flex flex-col gap-4 border-b border-line-soft py-7">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+                <div className="flex min-w-0 flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div className="flex min-w-0 items-center gap-3">
                     {active ? (
                       <span className="block h-[7px] w-[7px] rounded-full bg-accent" />
                     ) : null}
-                    <span className={`text-lg font-semibold ${active ? "" : "text-fg-2"}`}>
+                    <span className={`min-w-0 break-all text-lg font-semibold ${active ? "" : "text-fg-2"}`}>
                       {p.name}
                     </span>
                     {active ? (
-                      <span className="cap2 !text-accent">{t("使用中")}</span>
+                      <span className="cap2 shrink-0 whitespace-nowrap !text-accent">{t("使用中")}</span>
                     ) : (
                       <button
                         onClick={() => void doSelect(p)}
@@ -178,9 +181,9 @@ export default function Profiles() {
                       </button>
                     )}
                   </div>
-                  <div className="flex items-center gap-7">
+                  <div className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-3">
                     {p.url ? (
-                      <div className="flex items-center gap-3.5" title={t("自动更新间隔")}>
+                      <div className="flex flex-wrap items-center gap-3.5 whitespace-nowrap" title={t("自动更新间隔")}>
                         <span className="cap2 mr-1">{t("自动更新")}</span>
                         {INTERVALS.map((it) => (
                           <button
