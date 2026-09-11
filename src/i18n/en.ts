@@ -296,6 +296,7 @@ const en: Record<string, string> = {
   "断开连接": "Disconnect",
   "连接中…": "Connecting…",
   "服务模式": "Service mode",
+  "仅代理模式": "Proxy-only",
   "VPN 模式": "VPN mode",
   "接管全部应用的流量（系统 VPN）": "Routes every app through the system VPN",
   "仅代理模式：在 Wi-Fi 详情把代理指向 127.0.0.1 与混合端口": "Proxy-only mode: point the Wi-Fi proxy at 127.0.0.1 and the mixed port",

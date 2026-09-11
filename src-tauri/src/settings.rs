@@ -85,6 +85,8 @@ pub struct AppSettings {
     pub mixed_port: u16,
     /// the port the last automatic start used; not user-facing
     pub last_mixed_port: u16,
+    /// settings schema version for one-time migrations (see `migrate`)
+    pub schema: u32,
     pub allow_lan: bool,
     pub ipv6: bool,
     pub system_proxy: bool,
@@ -101,6 +103,22 @@ pub struct AppSettings {
     pub webdav: WebdavSettings,
 }
 
+/// Bump when an existing app-config.json needs a one-time adjustment.
+/// 1: Android installs made before VPN mode was the default keep
+///    `tun.enable = false` on disk, so connecting never asks for VPN consent.
+pub const SCHEMA: u32 = 1;
+
+fn migrate(s: &mut AppSettings) -> bool {
+    let from = s.schema;
+    if s.schema < 1 {
+        if cfg!(target_os = "android") {
+            s.tun.enable = true;
+        }
+        s.schema = 1;
+    }
+    s.schema != from
+}
+
 pub fn default_bypass() -> String {
     if cfg!(windows) {
         "localhost;127.*;192.168.*;10.*;172.16.*;<local>".into()
@@ -114,6 +132,7 @@ impl Default for AppSettings {
         Self {
             mixed_port: 0,
             last_mixed_port: 0,
+            schema: SCHEMA,
             allow_lan: false,
             ipv6: false,
             system_proxy: false,
@@ -143,8 +162,13 @@ pub fn load(app: &AppHandle) -> AppSettings {
     let Ok(text) = std::fs::read_to_string(&p) else {
         return AppSettings::default();
     };
-    match serde_json::from_str(text.trim_start_matches('\u{feff}')) {
-        Ok(s) => s,
+    match serde_json::from_str::<AppSettings>(text.trim_start_matches('\u{feff}')) {
+        Ok(mut s) => {
+            if migrate(&mut s) {
+                let _ = save(app, &s);
+            }
+            s
+        }
         Err(e) => {
             let stamp = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -182,6 +206,7 @@ pub fn settings_set(app: AppHandle, mut settings: AppSettings) -> Result<(), Str
     let before = load(&app);
     // backend-owned: the frontend's copy may predate the last core start
     settings.last_mixed_port = before.last_mixed_port;
+    settings.schema = before.schema.max(settings.schema);
     save(&app, &settings)?;
     let r = crate::system::sync_system_proxy(&app);
     if before.locale != settings.locale {

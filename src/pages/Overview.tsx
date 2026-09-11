@@ -438,6 +438,9 @@ export default function Overview() {
                   ? t("内核异常")
                   : t("内核已停止")}
           </span>
+          {!IS_DESKTOP && phase === "running" ? (
+            <span className={`cap2 ${tunOn ? "!text-ok" : ""}`}>{tunOn ? "VPN" : t("仅代理模式")}</span>
+          ) : null}
           {phase === "running" && api ? (
             <span className="cap2">
               {t("API 127.0.0.1:{port} · 混合端口 {mixed}", {

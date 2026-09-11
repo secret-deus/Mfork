@@ -140,6 +140,7 @@ export interface AppSettings {
   mixed_port: number;
   /** port the last automatic start used; managed by the backend */
   last_mixed_port: number;
+  schema: number;
   allow_lan: boolean;
   ipv6: boolean;
   system_proxy: boolean;
