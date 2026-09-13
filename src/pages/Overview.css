@@ -1,0 +1,106 @@
+/* Keep the original open dashboard: readouts left, a separate 3D layer right. */
+.overview-page {
+  isolation: isolate;
+  scrollbar-gutter: stable;
+}
+
+.overview-page > :not(.overview-orbit) {
+  flex-shrink: 0;
+}
+
+.overview-page > .flex-1 {
+  min-height: 30px;
+}
+
+.overview-readout,
+.overview-controls,
+.overview-status {
+  min-width: 0;
+}
+
+.overview-metrics > .flex-1 {
+  min-width: 0;
+}
+
+.overview-metrics .font-sg {
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(20px, 2.1vw, 26px);
+  overflow-wrap: anywhere;
+}
+
+.overview-metrics .cap {
+  letter-spacing: .8px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.overview-status {
+  margin-top: 22px;
+  overflow-wrap: anywhere;
+}
+
+.overview-status .cap2 {
+  letter-spacing: .5px;
+  line-height: 1.8;
+  text-transform: none;
+}
+
+.overview-orbit {
+  z-index: 0;
+}
+
+@media (min-width: 768px) {
+  .overview-orbit {
+    right: 20px;
+    top: max(290px, 49%);
+    width: min(49%, 76vh);
+    height: auto;
+    aspect-ratio: 1;
+  }
+
+  .overview-readout,
+  .overview-metrics,
+  .overview-metric-line,
+  .overview-controls {
+    width: calc(51% - 18px);
+    max-width: 490px;
+  }
+
+  .overview-status {
+    max-width: min(100%, 660px);
+  }
+
+  .overview-metrics > .flex-1:not(:first-child) {
+    padding-left: 15px;
+  }
+
+  .overview-controls {
+    column-gap: 18px;
+    row-gap: 12px;
+  }
+}
+
+@media (min-width: 1400px) {
+  .overview-orbit {
+    right: 28px;
+    width: min(50%, 79vh);
+  }
+}
+
+@media (max-width: 767px) {
+  .overview-status {
+    max-width: 100%;
+  }
+
+  .overview-controls button {
+    min-height: 40px;
+  }
+
+  .overview-metrics {
+    max-width: 100%;
+  }
+
+  .overview-metrics > .flex-1:not(:first-child) {
+    padding-left: 12px;
+  }
+}

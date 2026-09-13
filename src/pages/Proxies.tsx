@@ -116,7 +116,7 @@ export default function Proxies() {
   };
 
   return (
-    <div className="proxy-page flex h-full min-w-0 flex-col px-4 md:px-14 pb-4 pt-5 md:pt-13">
+    <div className="proxy-page page-shell flex h-full min-w-0 flex-col px-4 md:px-14 pb-4 pt-5 md:pt-13">
       <div className="flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
         <div><h1 className="text-xl font-semibold md:hidden">{t("代理")}</h1><span className="cap hidden md:inline">{t("Mfork · 代理 Proxies")}</span></div>
         <div className="flex w-full items-center gap-5 overflow-x-auto whitespace-nowrap pb-1 [scrollbar-width:none] md:w-auto md:overflow-visible md:pb-0">
@@ -134,7 +134,7 @@ export default function Proxies() {
               </button>
             ))}
           </div>
-          <div className="h-3.5 w-px bg-line" />
+          <div className="h-3.5 w-px shrink-0 bg-line" />
           <button
             onClick={() => setHideUnavail((v) => !v)}
             className={`text-[13px] transition-colors ${
@@ -143,7 +143,7 @@ export default function Proxies() {
           >
             {t("隐藏不可用")}
           </button>
-          <div className="h-3.5 w-px bg-line" />
+          <div className="h-3.5 w-px shrink-0 bg-line" />
           <button
             onClick={() => void refresh().catch((e) => notify(String(e)))}
             className="text-[13px] text-mut hover:text-fg"
@@ -155,7 +155,7 @@ export default function Proxies() {
       </div>
 
       {phase === "running" && mode === "direct" ? (
-        <div role="status" className="mt-4 rounded-xl border border-line px-4 py-3 text-sm text-mut">
+        <div role="status" className="mt-5 border-l border-line-strong py-0.5 pl-3 text-[13px] leading-5 text-mut">
           {t("直连模式 · 不经过节点")}
         </div>
       ) : null}
@@ -183,7 +183,10 @@ export default function Proxies() {
                       desktop: everything on one baseline */}
                   <div className="min-w-0 flex-1">
                     <div className="flex min-w-0 items-baseline gap-3.5">
-                      <span className="[overflow-wrap:anywhere] text-[15px] font-semibold text-fg-2 md:truncate md:text-[16px]">
+                      <span
+                        title={g.name}
+                        className="[overflow-wrap:anywhere] text-[15px] font-medium text-fg-2 md:truncate"
+                      >
                         {g.name}
                       </span>
                       <span className="cap2 hidden md:inline">{g.type}</span>
@@ -201,7 +204,7 @@ export default function Proxies() {
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-3 md:gap-4">
-                    <span className="hidden max-w-[260px] truncate text-[13px] text-mut md:inline">{g.now}</span>
+                    <span title={g.now} className="hidden max-w-[260px] truncate text-[13px] text-mut md:inline">{g.now}</span>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -222,7 +225,7 @@ export default function Proxies() {
                   </div>
                 </div>
                 {open ? (
-                  <div className="proxy-nodes grid grid-cols-1 gap-x-4 pb-4 md:grid-cols-2 xl:grid-cols-3">
+                  <div className="proxy-nodes grid grid-cols-1 gap-x-6 pb-4 md:grid-cols-2 xl:grid-cols-3">
                     {!selectable(g) ? (
                       <div className="cap2 col-span-full pb-1">
                         {t("{type} 组由内核自动选择，不能手动切换", { type: g.type })}
@@ -236,22 +239,23 @@ export default function Proxies() {
                         <button
                           key={name}
                           onClick={() => void select(g, name)}
-                          className={`proxy-node min-w-0 flex items-center justify-between gap-3 border-b border-line-faint px-3 py-3 text-left ${selected ? "bg-accent/10 rounded-xl" : ""} ${
-                            selectable(g) ? "" : "cursor-default"
+                          aria-pressed={selected}
+                          className={`proxy-node page-node grid min-h-[68px] min-w-0 grid-cols-[minmax(0,1fr)_4.5rem] items-center gap-x-4 border-b border-line-faint px-3 py-2.5 text-left ${selected ? "rounded-lg bg-accent/10" : ""} ${
+                            selectable(g) ? "hover:bg-surface" : "cursor-default"
                           }`}
                         >
-                          <span className="flex min-w-0 flex-1 items-center gap-2.5">
+                          <span className="flex min-w-0 items-center gap-2">
                             {selected ? (
                               <span className="block h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
                             ) : null}
                             <span className="min-w-0 flex-1">
-                            <span className={`block [overflow-wrap:anywhere] text-[14px] leading-6 ${selected ? "text-fg" : "text-fg-3"}`}>
-                              {name}
-                            </span>
-                            <span className="block text-xs leading-5 text-dim">{n?.type ?? ""}</span>
+                              <span className={`block [overflow-wrap:anywhere] font-normal md:truncate ${selected ? "text-fg" : "text-fg-3"}`} title={name}>
+                                {name}
+                              </span>
+                              <span className="page-meta block truncate text-dim">{n?.type ?? ""}</span>
                             </span>
                           </span>
-                          <span className={`font-sg shrink-0 text-[15px] ${delayColor(d)}`}>
+                          <span className={`page-num font-sg shrink-0 text-right text-[13px] ${delayColor(d)}`}>
                             {d && d > 0 ? `${d} ms` : "—"}
                           </span>
                         </button>

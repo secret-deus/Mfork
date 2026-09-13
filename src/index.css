@@ -5,7 +5,7 @@
   --t-bg: #0b0c0f;
   --t-surface: #14161b;
   --t-line-faint: #1c1f26;
-  --t-line-soft: #22262e;
+  --t-line-soft: #252b34;
   --t-line: #2a2f38;
   --t-line-strong: #353b45;
   --t-fg: #f5f6f8;
@@ -99,13 +99,24 @@ body {
   background: var(--t-bg);
   color: var(--t-fg);
   font-family: "Lexend Variable", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
-  font-weight: 500;
+  font-weight: 400;
   -webkit-font-smoothing: antialiased;
   user-select: none;
   overflow: hidden;
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 
+/* ---- shared page-shell / node / table utilities (desktop density) ---- */
+@layer utilities {
+  /* shell a page body inherits: desktop body copy sits at a calm 13.5px */
+  .page-shell { font-size: 13.5px; line-height: 1.5; }
+  /* one metric for node / list rows so heights stay uniform */
+  .page-node { font-size: 13.5px; line-height: 20px; }
+  /* secondary metadata under a node or row: smaller, still normal weight */
+  .page-meta { font-size: 11.5px; line-height: 16px; }
+  /* tabular figures so numbers line up in their column */
+  .page-num { font-variant-numeric: tabular-nums; }
+}
 
 select option {
   background: var(--t-bg);
@@ -137,27 +148,27 @@ select option {
 
 /* editorial micro-labels */
 .cap {
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
-  letter-spacing: 2.5px;
+  letter-spacing: 1.2px;
   color: var(--t-fg);
   text-transform: uppercase;
 }
 .cap2 {
   font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 1.5px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
   color: var(--t-label);
   text-transform: uppercase;
 }
 
 /* Phone layouts prioritize names and actions over desktop metadata columns. */
 @media (max-width: 767px) {
-  .cap { font-size: 14px; letter-spacing: .5px; }
+  .cap { font-size: 13px; font-weight: 600; letter-spacing: .5px; }
   .cap2 { font-size: 12px; letter-spacing: .2px; text-transform: none; }
   .proxy-page button, .connections-page button { min-height: 44px; white-space: nowrap; }
   .proxy-node { white-space: normal !important; }
-  .proxy-group { margin-bottom: 12px; padding: 0 12px; border: 1px solid var(--t-line-soft); border-radius: 16px; background: var(--t-surface); }
+  .proxy-group { margin-bottom: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
   .proxy-group-header { gap: 8px; }
   .proxy-nodes { gap: 4px; }
   .connection-filters input { flex-basis: calc(100% - 32px); height: 44px; }
@@ -165,4 +176,5 @@ select option {
   .connection-filters select { height: 44px; }
   .app-shell nav button { flex: 1; min-width: 0; min-height: 52px; }
   .app-shell nav button span { font-size: 12px; line-height: 1.3; }
+  /* opened nodes stack on phones: rows are separated by their own line */
 }

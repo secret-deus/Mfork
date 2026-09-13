@@ -124,6 +124,8 @@ export default function App() {
           <button
             key={item.key}
             title={t(item.label)}
+            aria-label={t(item.label)}
+            aria-current={page === item.key ? "page" : undefined}
             onClick={() => setPage(item.key)}
             className={`flex h-[38px] w-[38px] items-center justify-center rounded-[10px] transition-colors ${
               page === item.key
@@ -151,6 +153,7 @@ export default function App() {
             <button
               key={item.key}
               onClick={() => go(item.key)}
+              aria-current={active ? "page" : undefined}
               className={`flex min-w-[64px] flex-col items-center gap-1 rounded-[12px] px-2 py-1.5 transition-colors ${
                 active ? "text-fg" : "text-dim"
               }`}
@@ -162,6 +165,8 @@ export default function App() {
         })}
         <button
           onClick={() => setMoreOpen((v) => !v)}
+          aria-expanded={moreOpen}
+          aria-label={t("更多")}
           className={`flex min-w-[64px] flex-col items-center gap-1 rounded-[12px] px-2 py-1.5 transition-colors ${
             moreOpen || secondary.some((n) => n.key === page) ? "text-fg" : "text-dim"
           }`}
@@ -179,6 +184,7 @@ export default function App() {
               return (
                 <button
                   key={item.key}
+                  aria-current={active ? "page" : undefined}
                   onClick={() => go(item.key)}
                   className={`flex flex-col items-center gap-1.5 rounded-[12px] px-2 py-3 ${
                     active ? "bg-nav-active text-fg" : "text-dim"

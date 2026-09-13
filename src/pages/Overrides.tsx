@@ -81,14 +81,14 @@ export default function Overrides() {
             >
               {t("← 返回")}
             </button>
-            <span className="text-[16px] font-semibold">{editing.name}</span>
+            <span className="text-[16px] font-medium leading-snug">{editing.name}</span>
             <span className="cap2">{editing.kind}</span>
             {dirty ? <span className="cap2 !text-warn">{t("未保存")}</span> : null}
           </div>
           <button
             onClick={() => void save()}
             disabled={!dirty}
-            className="text-[13px] font-semibold tracking-[1px] text-accent hover:text-fg disabled:opacity-40"
+            className="text-[13px] font-medium tracking-[0.5px] text-accent hover:text-fg disabled:opacity-40"
           >
             {t("保存并应用")}
           </button>
@@ -153,7 +153,7 @@ export default function Overrides() {
                 await openEditor(meta);
               }, false)
             }
-            className="text-[13px] font-semibold text-accent hover:text-fg"
+            className="text-[13px] font-medium text-accent hover:text-fg"
           >
             {t("创建")}
           </button>
@@ -172,7 +172,7 @@ export default function Overrides() {
           list.map((o, i) => (
             <div
               key={o.id}
-              className="flex items-center justify-between border-b border-line-soft py-4"
+              className="flex items-center justify-between border-b border-line-soft py-3.5"
             >
               <div className="flex items-center gap-3.5">
                 <button
@@ -190,7 +190,7 @@ export default function Overrides() {
                 </button>
                 <button
                   onClick={() => void openEditor(o)}
-                  className={`text-[15px] font-semibold ${o.enabled ? "" : "text-dim"} hover:text-accent`}
+                  className={`text-[14px] font-medium leading-snug ${o.enabled ? "" : "text-dim"} hover:text-accent`}
                 >
                   {o.name}
                 </button>

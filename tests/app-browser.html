@@ -1,0 +1,18 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MFORK application UI test</title></head><body><div id="root"></div><script type="module">
+import React,{StrictMode} from 'react';
+import {createRoot} from 'react-dom/client';
+import {mockIPC,mockWindows} from '@tauri-apps/api/mocks';
+import App from '../src/App';
+import {useApp} from '../src/store';
+import {applyTheme} from '../src/theme';
+import '../src/index.css';
+const settings={schema:1,mixed_port:2176,last_mixed_port:2176,allow_lan:false,ipv6:false,system_proxy:true,proxy_bypass:'localhost;127.*;192.168.*',silent_start:false,tun:{enable:false,stack:'mixed',auto_route:true,strict_route:true,dns_hijack:true,mtu:1500},dns:{enable:true,enhanced_mode:'fake-ip',nameserver:['https://dns.example/dns-query'],fallback:[]},core_channel:'stable',theme:'dark',locale:'zh-CN',webdav:{url:'',username:'',password:''}};
+const group={name:'节点选择',type:'Selector',now:'JP 日本 东京 01',all:['JP 日本 东京 01','HK 香港 01','US 洛杉矶 01'],history:[]};
+const proxies={};for(const [name,delay] of [['JP 日本 东京 01',42],['HK 香港 01',38],['US 洛杉矶 01',230]])proxies[name]={name,type:'Shadowsocks',history:[{time:new Date().toISOString(),delay}],alive:true};proxies[group.name]=group;
+mockIPC(cmd=>{if(cmd==='profiles_list')return {selected:null,items:[]};if(cmd==='overrides_list')return [];if(cmd==='service_status')return {installed:false,reachable:false};if(cmd==='core_version_info')return {installed:'v1.19.30',bundled:'v1.19.30',upgraded:false};if(cmd==='settings_get')return settings;if(cmd==='autostart_get')return false;return null;});mockWindows('main');
+const realFetch=window.fetch;
+window.fetch=async(input,init)=>{const url=new URL(input instanceof Request?input.url:String(input),location.href);if(url.port!=='65500')return realFetch(input,init);let data={};if(url.pathname==='/proxies')data={proxies};if(url.pathname==='/group')data={proxies:[group]};if(url.pathname==='/rules')data={rules:[{type:'Domain',payload:'example.com',proxy:'DIRECT'}]};if(url.pathname==='/providers/rules')data={providers:{}};if(url.pathname==='/configs')data={mode:'rule'};return Response.json(data)};
+useApp.setState({init:async()=>{},settings,phase:'running',api:{port:65500,mixed_port:2176,secret:'test-only',started_at_ms:Date.now()-10000},version:'v1.19.30',down:13421772,up:866304,memory:99614720,connections:3,snapshot:{connections:[],downloadTotal:123456,uploadTotal:1234}});
+applyTheme('dark');window.uiFixture={theme:applyTheme,stop:()=>useApp.setState({phase:'stopped',api:null})};
+createRoot(document.getElementById('root')).render(React.createElement(StrictMode,null,React.createElement(App)));
+</script></body></html>

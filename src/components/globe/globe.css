@@ -1,0 +1,45 @@
+.overview-globe { isolation: isolate; }
+.overview-globe .globe-canvas { outline: none; }
+.overview-globe .globe-canvas:focus-visible {
+  outline: 1px solid var(--t-accent);
+  outline-offset: -5px;
+  border-radius: 50%;
+}
+.overview-globe .globe-reset {
+  position: absolute;
+  right: 5%;
+  bottom: 3%;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--t-dim);
+  font-size: 21px;
+  opacity: .6;
+  cursor: pointer;
+  transition: color .15s, opacity .15s;
+}
+.overview-globe:hover .globe-reset,
+.overview-globe:focus-within .globe-reset { opacity: 1; }
+.overview-globe .globe-reset:hover { color: var(--t-accent); }
+.overview-globe .globe-reset:focus-visible { outline: 2px solid var(--t-accent); }
+.overview-globe .globe-fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  padding: 20%;
+  color: var(--t-mut);
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.8;
+}
+@media (max-width: 767px) {
+  .overview-globe .globe-reset { width: 44px; height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .overview-globe .globe-reset { transition: none; }
+}

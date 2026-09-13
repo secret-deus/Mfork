@@ -107,7 +107,7 @@ export default function Rules() {
           shown.map((r, i) => (
             <div key={i} className="flex items-center gap-4 border-b border-line-faint py-2.5">
               <span className="cap2 w-36 shrink-0">{r.type}</span>
-              <span className="min-w-0 flex-1 truncate text-[13px] text-fg-3">{r.payload || "—"}</span>
+              <span className="page-node min-w-0 flex-1 truncate text-fg-3" title={r.payload}>{r.payload || "—"}</span>
               <span className={`shrink-0 text-[13px] ${r.proxy === "DIRECT" ? "text-ok" : r.proxy === "REJECT" ? "text-err" : "text-mut"}`}>
                 {r.proxy}
               </span>

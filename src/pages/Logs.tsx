@@ -78,10 +78,10 @@ export default function Logs() {
               <span className="shrink-0 text-dim">
                 {new Date(l.at).toLocaleTimeString("en-GB")}
               </span>
-              <span className={`w-14 shrink-0 uppercase tracking-[1px] text-[11px] pt-0.5 ${COLOR[l.type] ?? "text-mut"}`}>
+              <span className={`w-14 shrink-0 pt-0.5 text-[10.5px] font-medium uppercase tracking-[0.5px] ${COLOR[l.type] ?? "text-mut"}`}>
                 {l.type}
               </span>
-              <span className="break-all text-fg-3">{l.payload}</span>
+              <span className="break-all text-[13px] text-fg-3">{l.payload}</span>
             </div>
           ))
         )}

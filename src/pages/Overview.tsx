@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useApp } from "../store";
 import { IS_DESKTOP } from "../lib/platform";
 import { apiGet, coreLogTail, formatBytes, formatRate, serviceStatus, type AppSettings, type ServiceStatus } from "../lib/core";
 import { useT } from "../i18n";
-import Globe, { GlobeNode, GlobeRoute } from "../components/Globe";
+import type { GlobeNode, GlobeRoute } from "../components/Globe";
 import { locateNode, locateNodeDetail, locateSelfDetail } from "../lib/geo";
 import { ProxyGroup, ProxyNode } from "../lib/types";
+import "./Overview.css";
+
+const Globe = lazy(() => import("../components/Globe"));
 
 const GROUP_TYPES = new Set(["Selector", "URLTest", "Fallback", "LoadBalance", "Relay"]);
 const BUILTIN = new Set(["DIRECT", "REJECT", "REJECT-DROP", "PASS", "COMPATIBLE", "GLOBAL"]);
@@ -271,10 +274,12 @@ export default function Overview() {
   };
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden px-5 md:px-14 pb-10 pt-6 md:pt-13">
-      {/* globe on the right; drag to rotate, it drifts back home when released */}
-      <div className="absolute top-[38%] -right-[45vw] h-[110vw] w-[110vw] -translate-y-1/2 select-none md:top-1/2 md:right-[6vh] md:h-[72vh] md:w-[72vh]">
-        <Globe self={self.pos} nodes={globe.nodes} routes={routes} active={phase === "running"} />
+    <div className="overview-page relative flex h-full flex-col overflow-x-hidden overflow-y-auto px-5 md:px-14 pb-10 pt-6 md:pt-13">
+      {/* Isolated 3D layer: real route data, loaded only by the overview. */}
+      <div className="overview-orbit absolute top-[38%] -right-[45vw] h-[110vw] w-[110vw] -translate-y-1/2 select-none md:top-1/2 md:right-[6vh] md:h-[72vh] md:w-[72vh]">
+        <Suspense fallback={<div className="flex h-full w-full items-center justify-center text-[12px] text-dim" role="status">{t("加载中…")}</div>}>
+          <Globe self={self.pos} nodes={globe.nodes} routes={routes} active={phase === "running"} />
+        </Suspense>
       </div>
       <div className="relative z-10 flex items-center justify-between">
         <div className="cap">{t("Mfork · 概览 Overview")}</div>
@@ -283,25 +288,25 @@ export default function Overview() {
         </div>
       </div>
 
-      <div className="relative z-10 mt-8 flex items-baseline gap-3.5">
+      <div className="overview-readout relative z-10 mt-8 flex items-baseline gap-3.5">
         <span className="font-sg text-[72px] leading-[0.9] font-light tracking-[-2px] md:text-[100px]">
           {phase === "running" ? dl.value : "0"}
         </span>
         <div className="flex flex-col gap-0.5">
-          <span className="text-[14px] font-semibold text-accent">{dl.unit}</span>
+          <span className="text-[14px] font-medium text-accent">{dl.unit}</span>
           <span className="cap2 !text-ok tracking-[2px]">{t("↓ 下载")}</span>
         </div>
       </div>
-      <div className="relative z-10 mt-4 flex items-baseline gap-3">
+      <div className="overview-readout relative z-10 mt-4 flex items-baseline gap-3">
         <span className="font-sg text-[38px] leading-none font-light text-fg-3">
           {phase === "running" ? ul.value : "0"}
         </span>
-        <span className="text-[12px] font-semibold text-accent">{ul.unit}</span>
+        <span className="text-[12px] font-medium text-accent">{ul.unit}</span>
         <span className="cap2 !text-accent tracking-[2px]">{t("↑ 上传")}</span>
       </div>
 
-      <div className="relative z-10 mt-9 h-px w-full max-w-[470px] bg-line" />
-      <div className="relative z-10 flex w-full max-w-[470px]">
+      <div className="overview-metric-line relative z-10 mt-9 h-px w-full max-w-[470px] bg-line" />
+      <div className="overview-metrics relative z-10 flex w-full max-w-[470px]">
         <div className="flex flex-1 flex-col gap-1.5 py-4">
           <span className="cap">{t("活动连接")}</span>
           <span className="font-sg text-[26px]">
@@ -323,13 +328,14 @@ export default function Overview() {
           </span>
         </div>
       </div>
-      <div className="relative z-10 h-px w-full max-w-[470px] bg-line" />
+      <div className="overview-metric-line relative z-10 h-px w-full max-w-[470px] bg-line" />
 
-      <div className="relative z-10 mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
+      <div className="overview-controls relative z-10 mt-6 flex flex-wrap items-center gap-x-5 gap-y-3">
         {MODES.map((m) => (
           <button
             key={m.key}
             onClick={() => setMode(m.key)}
+            aria-pressed={mode === m.key}
             disabled={phase !== "running"}
             className={`border-b-2 pb-1.5 text-[14px] transition-colors ${
               mode === m.key
@@ -343,6 +349,9 @@ export default function Overview() {
         <div className="h-4 w-px bg-line" />
         {IS_DESKTOP ? <button
           onClick={() => void setSystemProxy(!(settings?.system_proxy ?? false))}
+          role="switch"
+          aria-checked={settings?.system_proxy ?? false}
+          aria-label={t("系统代理")}
           disabled={!settings}
           className="flex items-center gap-2 pb-1.5 text-[14px] text-dim transition-colors hover:text-mut disabled:opacity-40"
         >
@@ -359,6 +368,9 @@ export default function Overview() {
           <>
             <button
               onClick={() => void toggleTun()}
+              role="switch"
+              aria-checked={tunOn}
+              aria-label={t("启用 TUN")}
               disabled={!tunAvailable}
               title={tunAvailable ? (tunOn ? t("关闭 TUN") : t("启用 TUN")) : t("需先安装系统服务")}
               className="flex items-center gap-2 pb-1.5 text-[14px] text-dim transition-colors hover:text-mut disabled:opacity-40"
@@ -388,7 +400,7 @@ export default function Overview() {
 
       <div className="flex-1" />
 
-      <div className="relative z-10 flex w-full max-w-[470px] flex-col gap-3">
+      <div className="overview-status relative z-10 flex w-full max-w-[470px] flex-col gap-3">
         {phase === "running" ? (
           <div className="flex flex-col gap-1.5">
             <div className="cap2">
@@ -411,13 +423,13 @@ export default function Overview() {
               {coreLog !== null ? t("收起内核日志") : t("查看内核日志")}
             </button>
             {coreLog !== null ? (
-              <pre className="max-h-56 overflow-auto rounded-[10px] border border-line-soft bg-surface p-3 font-sg text-[11px] leading-relaxed whitespace-pre-wrap break-all text-fg-3 select-text">
+              <pre className="max-h-56 overflow-auto border-y border-line-soft py-3 font-sg text-[11px] leading-relaxed whitespace-pre-wrap break-all text-fg-3 select-text">
                 {coreLog}
               </pre>
             ) : null}
           </div>
         ) : null}
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2">
           <span
             className={`block h-2 w-2 rounded-full ${
               phase === "running"

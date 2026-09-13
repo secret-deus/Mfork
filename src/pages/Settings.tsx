@@ -77,11 +77,11 @@ function Row({
 }) {
   return (
     <div
-      className={`flex items-center justify-between gap-6 py-4 ${last ? "" : "border-b border-line-soft"}`}
+      className={`flex items-center justify-between gap-6 py-3.5 ${last ? "" : "border-b border-line-soft"}`}
     >
       <div className="min-w-0 shrink">
-        <div className="text-[13.5px] text-fg-2">{label}</div>
-        {sub ? <div className="mt-0.5 text-[12.5px] text-fg-3 select-text">{sub}</div> : null}
+        <div className="text-[13px] leading-5 text-fg-2">{label}</div>
+        {sub ? <div className="mt-0.5 text-[12px] leading-relaxed text-fg-3 select-text">{sub}</div> : null}
       </div>
       {right}
     </div>
@@ -91,7 +91,7 @@ function Row({
 function Sect({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="border-b border-line-strong pb-2.5 text-[16px] font-semibold">{title}</div>
+      <div className="border-b border-line-strong pb-2.5 text-[19px] font-medium leading-tight">{title}</div>
       {children}
     </div>
   );
@@ -144,7 +144,7 @@ function NetDiagRow() {
 }
 
 const Val = ({ children }: { children: React.ReactNode }) => (
-  <span className="font-sg text-[13.5px] font-semibold text-fg">{children}</span>
+  <span className="page-num font-sg text-[13px] font-medium text-fg">{children}</span>
 );
 
 function Btn({
@@ -205,7 +205,7 @@ function Sel({
 }
 
 const inputCls =
-  "border-b border-line-strong bg-transparent pb-0.5 text-right font-sg text-[12.5px] text-fg-3 outline-none focus:border-accent disabled:opacity-40";
+  "border-b border-line-strong bg-transparent pb-0.5 text-right font-sg text-[13px] text-fg-3 outline-none focus:border-accent disabled:opacity-40";
 
 /** Text field that commits on blur / Enter. */
 function Field({

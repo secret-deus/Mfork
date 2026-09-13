@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "test:globe": "node --experimental-strip-types --test tests/globe-geometry.test.mjs",
     "preview": "vite preview",
     "tauri": "tauri",
     "fetch-core": "node scripts/fetch-core.mjs",
@@ -23,6 +24,7 @@
     "monaco-editor": "^0.56.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "three": "0.180.0",
     "topojson-client": "^3.1.0",
     "world-atlas": "^2.0.2",
     "zustand": "^5"
@@ -33,6 +35,7 @@
     "@types/d3-geo": "^3.1.1",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
+    "@types/three": "0.180.0",
     "@types/topojson-client": "^3.1.5",
     "@types/topojson-specification": "^1.0.5",
     "@vitejs/plugin-react": "^4.6.0",

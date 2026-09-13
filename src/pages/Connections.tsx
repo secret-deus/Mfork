@@ -32,9 +32,9 @@ function rate(n: number): string {
 }
 
 const thBase =
-  "text-left whitespace-nowrap py-3 pr-4 text-[11px] font-semibold uppercase tracking-[1.5px] select-none";
+  "text-left whitespace-nowrap py-3 pr-4 text-[11px] font-medium uppercase tracking-[0.6px] select-none";
 const tdCls =
-  "whitespace-nowrap overflow-hidden text-ellipsis py-3 pr-4 text-[13.5px] border-t border-line-soft";
+  "whitespace-nowrap overflow-hidden text-ellipsis py-3 pr-4 text-[13px] font-normal border-t border-line-soft";
 
 /** "↓ a / ↑ b" pair for one cell; dims the arrow of an idle direction */
 function Pair({ down, up, downOn, upOn }: { down: string; up: string; downOn: boolean; upOn: boolean }) {
@@ -172,7 +172,7 @@ export default function Connections() {
     `text-[13px] transition-colors ${on ? "text-fg font-semibold" : "text-mut hover:text-fg"}`;
 
   return (
-    <div className="connections-page flex h-full min-w-0 flex-col px-4 md:px-14 pb-4 pt-5 md:pt-13">
+    <div className="connections-page page-shell flex h-full min-w-0 flex-col px-4 md:px-14 pb-4 pt-5 md:pt-13">
       <div className="flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-2">
           <div className="w-full md:w-auto"><h1 className="text-xl font-semibold md:hidden">{t("连接")}</h1><span className="cap hidden md:inline">{t("Mfork · 连接 Connections")}</span></div>
@@ -257,15 +257,17 @@ export default function Connections() {
       </div>
 
       <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
-        {phase === "running" ? <div className="space-y-3 py-3 md:hidden">
+        {phase === "running" ? <div className="py-3 md:hidden">
           {view === "socket" ? items.map((c) => (
-            <article key={c.id} className="min-w-0 rounded-2xl border border-line-soft bg-surface p-4">
+            <article key={c.id} className="min-w-0 border-b border-line-soft py-3 last:border-b-0">
               <div className="flex items-start gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="select-text text-[15px] font-semibold leading-6 [overflow-wrap:anywhere]">{hostOf(c)}</div>
                   <div className="mt-1 text-xs text-mut">{c.metadata.network.toUpperCase()} · {formatDuration(c.start)}</div>
                 </div>
-                <button aria-label={t("关闭连接")} onClick={() => closeOne(c.id)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-line text-mut active:bg-err/10">×</button>
+                <button aria-label={t("关闭连接")} onClick={() => closeOne(c.id)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-lg leading-none text-mut active:bg-err/10">
+                  ×
+                </button>
               </div>
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm tabular-nums">
                 <span className="text-ok">↓ {rate(c.downSpeed)}</span>
@@ -285,7 +287,7 @@ export default function Connections() {
               </details>
             </article>
           )) : apps.map((a) => (
-            <article key={a.name} className="rounded-2xl border border-line-soft bg-surface p-4">
+            <article key={a.name} className="border-b border-line-soft py-3 last:border-b-0">
               <div className="font-semibold [overflow-wrap:anywhere]">{a.name}</div>
               <div className="mt-1 text-sm text-mut">{t("连接数")} {a.count}</div>
               <div className="mt-3 flex flex-wrap gap-3 text-sm"><span className="text-ok">↓ {rate(a.downSpeed)}</span><span className="text-accent">↑ {rate(a.upSpeed)}</span></div>
@@ -324,7 +326,7 @@ export default function Connections() {
                     >
                       <td className={`${tdCls} text-fg`}>
                         {hostOf(c)}
-                        <span className="ml-2 text-[10.5px] font-semibold uppercase tracking-[1px] text-label">
+                        <span className="ml-2 text-[10.5px] font-medium uppercase tracking-[0.6px] text-label">
                           {c.metadata.network}
                         </span>
                       </td>

@@ -138,7 +138,7 @@ export default function Profiles() {
         <button
           onClick={() => void doImport()}
           disabled={!url.trim() || busy !== null}
-          className="text-[13.5px] font-semibold tracking-[1px] text-accent hover:text-fg disabled:opacity-40"
+          className="text-[13px] font-medium tracking-[0.5px] text-accent hover:text-fg disabled:opacity-40"
         >
           {busy === "import" ? t("下载中…") : t("导入")}
         </button>
@@ -160,13 +160,13 @@ export default function Profiles() {
             const used = p.sub ? p.sub.upload + p.sub.download : 0;
             const pct = p.sub && p.sub.total > 0 ? Math.min(100, (used / p.sub.total) * 100) : 0;
             return (
-              <div key={p.id} className="flex flex-col gap-4 border-b border-line-soft py-7">
+              <div key={p.id} className="flex flex-col gap-4 border-b border-line-soft py-6">
                 <div className="flex min-w-0 flex-col gap-4 md:flex-row md:items-center md:justify-between">
                   <div className="flex min-w-0 items-center gap-3">
                     {active ? (
                       <span className="block h-[7px] w-[7px] rounded-full bg-accent" />
                     ) : null}
-                    <span className={`min-w-0 break-all text-lg font-semibold ${active ? "" : "text-fg-2"}`}>
+                    <span className={`min-w-0 break-all text-[17px] font-medium leading-snug ${active ? "" : "text-fg-2"}`} title={p.name}>
                       {p.name}
                     </span>
                     {active ? (
@@ -193,7 +193,7 @@ export default function Profiles() {
                             }
                             className={`text-[12px] tracking-[0.5px] ${
                               p.interval_hours === it.v
-                                ? "text-accent font-semibold"
+                                ? "font-medium text-accent"
                                 : "text-dim hover:text-mut"
                             }`}
                           >

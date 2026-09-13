@@ -1,5 +1,9 @@
 // English dictionary — keys are the zh-CN source strings.
 const en: Record<string, string> = {
+  "三维地球：拖拽或方向键旋转，Home 键重置视角": "3D globe: drag or use arrow keys to rotate; Home resets the view",
+  "重置地球视角": "Reset globe view",
+  "地球渲染已暂停，等待图形设备恢复": "Globe rendering paused; waiting for the graphics device to recover",
+  "此设备暂不支持三维地球，网络功能不受影响": "3D globe is unavailable on this device. Network features are unaffected.",
   // ---- navigation / page headers
   "概览": "Overview",
   "代理": "Proxies",
