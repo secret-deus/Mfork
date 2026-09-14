@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "test:globe": "node --experimental-strip-types --test tests/globe-geometry.test.mjs",
+    "test:process-rules": "node --experimental-strip-types --test tests/process-rules.test.mjs",
     "preview": "vite preview",
     "tauri": "tauri",
     "fetch-core": "node scripts/fetch-core.mjs",

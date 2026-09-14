@@ -1,42 +1,62 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useApp } from "../store";
 import { apiGet, apiPut, relativeTime } from "../lib/core";
 import { RuleItem, RuleProvider } from "../lib/types";
 import { useT } from "../i18n";
+import { IS_DESKTOP } from "../lib/platform";
+import ProcessRules from "../components/ProcessRules";
 
 export default function Rules() {
   const t = useT();
-  const { api, phase } = useApp();
+  const { api, phase, notify } = useApp();
   const [rules, setRules] = useState<RuleItem[]>([]);
   const [providers, setProviders] = useState<RuleProvider[]>([]);
   const [filter, setFilter] = useState("");
   const [updating, setUpdating] = useState<string | null>(null);
+  const [readError, setReadError] = useState("");
+  const requestId = useRef(0);
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; requestId.current++; };
+  }, []);
 
-  const refresh = async () => {
-    if (!api) return;
-    const r = await apiGet<{ rules: RuleItem[] }>(api, "/rules");
-    const p = await apiGet<{ providers: Record<string, RuleProvider> }>(api, "/providers/rules");
-    setRules(r.rules);
-    setProviders(Object.values(p.providers ?? {}));
-  };
+  const refreshNow = useCallback(async () => {
+    if (!api || phase !== "running") return;
+    const id = ++requestId.current;
+    const isCurrent = () => alive.current && id === requestId.current && useApp.getState().api === api && useApp.getState().phase === "running";
+    try {
+      const [r, p] = await Promise.all([
+        apiGet<{ rules: RuleItem[] }>(api, "/rules"),
+        apiGet<{ providers: Record<string, RuleProvider> }>(api, "/providers/rules"),
+      ]);
+      if (!isCurrent()) return;
+      setRules(r.rules);
+      setProviders(Object.values(p.providers ?? {}));
+      setReadError("");
+    } catch (error) {
+      if (!isCurrent()) return;
+      const message = t("读取规则失败: {msg}", { msg: String(error) });
+      setReadError(message); notify(message);
+    }
+  }, [api, phase, notify, t]);
 
   useEffect(() => {
-    if (phase === "running") void refresh();
-    else {
-      setRules([]);
-      setProviders([]);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, api]);
+    if (phase !== "running") { requestId.current++; setRules([]); setProviders([]); setReadError(""); }
+    else void refreshNow();
+    return () => { requestId.current++; };
+  }, [phase, refreshNow]);
 
   const updateProvider = async (name: string) => {
     if (!api) return;
     setUpdating(name);
     try {
       await apiPut(api, `/providers/rules/${encodeURIComponent(name)}`);
-      await refresh();
+      if (useApp.getState().api === api) await refreshNow();
+    } catch (error) {
+      if (alive.current) notify(t("更新规则提供者失败: {msg}", { msg: String(error) }));
     } finally {
-      setUpdating(null);
+      if (alive.current) setUpdating(null);
     }
   };
 
@@ -60,6 +80,10 @@ export default function Rules() {
           </span>
         </div>
       </div>
+
+      {/* Local process rules do not change the profile or auto-apply on navigation. */}
+      {IS_DESKTOP ? <ProcessRules onApplied={refreshNow} /> : null}
+      {readError ? <p className="mt-3 text-[12px] text-err" role="alert">{readError}</p> : null}
 
       {providers.length > 0 ? (
         <div className="mt-5 flex flex-wrap gap-x-8 gap-y-2 border-b border-line pb-4">

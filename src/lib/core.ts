@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { t } from "../i18n";
+import type { ProcessRule } from "./process-rules";
 
 export interface ApiInfo {
   port: number;
@@ -120,8 +121,8 @@ export const profileImportLocal = (path: string) =>
   invoke<ProfileMeta>("profile_import_local", { path });
 export const profileSetInterval = (id: string, hours: number) =>
   invoke<void>("profile_set_interval", { id, hours });
-export const configRegenerate = () =>
-  invoke<string | null>("config_regenerate");
+export const configRegenerate = (mode?: "rule" | "global" | "direct") =>
+  invoke<string | null>("config_regenerate", { mode: mode ?? null });
 
 export interface TunSettings {
   enable: boolean;
@@ -162,6 +163,12 @@ export interface AppSettings {
   theme: "dark" | "light" | "system";
   locale: "zh-CN" | "zh-TW" | "en";
   webdav: WebdavSettings;
+  /**
+   * process-name routing rules (see lib/process-rules.ts). Older settings
+   * files and test fixtures may omit the field, so read it as
+   * `settings.process_rules ?? []`.
+   */
+  process_rules: ProcessRule[];
 }
 
 // ---- core self-upgrade (M6)

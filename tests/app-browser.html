@@ -6,13 +6,64 @@ import App from '../src/App';
 import {useApp} from '../src/store';
 import {applyTheme} from '../src/theme';
 import '../src/index.css';
-const settings={schema:1,mixed_port:2176,last_mixed_port:2176,allow_lan:false,ipv6:false,system_proxy:true,proxy_bypass:'localhost;127.*;192.168.*',silent_start:false,tun:{enable:false,stack:'mixed',auto_route:true,strict_route:true,dns_hijack:true,mtu:1500},dns:{enable:true,enhanced_mode:'fake-ip',nameserver:['https://dns.example/dns-query'],fallback:[]},core_channel:'stable',theme:'dark',locale:'zh-CN',webdav:{url:'',username:'',password:''}};
+
+const settings={schema:1,mixed_port:2176,last_mixed_port:2176,allow_lan:false,ipv6:false,system_proxy:true,proxy_bypass:'localhost;127.*;192.168.*',silent_start:false,tun:{enable:false,stack:'mixed',auto_route:true,strict_route:true,dns_hijack:true,mtu:1500},dns:{enable:true,enhanced_mode:'fake-ip',nameserver:['https://dns.example/dns-query'],fallback:[]},core_channel:'stable',theme:'dark',locale:'zh-CN',webdav:{url:'',username:'',password:''},process_rules:[]};
 const group={name:'节点选择',type:'Selector',now:'JP 日本 东京 01',all:['JP 日本 东京 01','HK 香港 01','US 洛杉矶 01'],history:[]};
-const proxies={};for(const [name,delay] of [['JP 日本 东京 01',42],['HK 香港 01',38],['US 洛杉矶 01',230]])proxies[name]={name,type:'Shadowsocks',history:[{time:new Date().toISOString(),delay}],alive:true};proxies[group.name]=group;
-mockIPC(cmd=>{if(cmd==='profiles_list')return {selected:null,items:[]};if(cmd==='overrides_list')return [];if(cmd==='service_status')return {installed:false,reachable:false};if(cmd==='core_version_info')return {installed:'v1.19.30',bundled:'v1.19.30',upgraded:false};if(cmd==='settings_get')return settings;if(cmd==='autostart_get')return false;return null;});mockWindows('main');
+const proxies={};
+for(const [name,delay] of [['JP 日本 东京 01',42],['HK 香港 01',38],['US 洛杉矶 01',230]])proxies[name]={name,type:'Shadowsocks',history:[{time:new Date().toISOString(),delay}],alive:true};
+proxies[group.name]=group;
+let savedSettings=structuredClone(settings), appliedRules=[], generatedRules=[], failSave=false, failApply=false, runtimeMode='rule', generatedMode='rule';
+const calls=[];
+const api={port:65500,mixed_port:2176,secret:'test-only',started_at_ms:Date.now()-10000};
+
+mockIPC((cmd,payload)=>{
+  calls.push(cmd);
+  if(cmd==='profiles_list')return {active:null,items:[]};
+  if(cmd==='overrides_list')return [];
+  if(cmd==='service_status')return {installed:false,reachable:false};
+  if(cmd==='core_version_info')return {installed:'v1.19.30',bundled:'v1.19.30',upgraded:false};
+  if(cmd==='settings_get')return structuredClone(savedSettings);
+  if(cmd==='settings_set'){
+    if(failSave){failSave=false;throw new Error('Fixture save failed');}
+    savedSettings=structuredClone(payload.settings);return null;
+  }
+  if(cmd==='config_regenerate'){
+    if(failApply){failApply=false;throw new Error('Fixture apply failed');}
+    generatedMode=payload?.mode??'rule';generatedRules=structuredClone(savedSettings.process_rules??[]);
+    return 'test-only-config.yaml';
+  }
+  if(cmd==='autostart_get')return false;
+  return null;
+});
+mockWindows('main');
 const realFetch=window.fetch;
-window.fetch=async(input,init)=>{const url=new URL(input instanceof Request?input.url:String(input),location.href);if(url.port!=='65500')return realFetch(input,init);let data={};if(url.pathname==='/proxies')data={proxies};if(url.pathname==='/group')data={proxies:[group]};if(url.pathname==='/rules')data={rules:[{type:'Domain',payload:'example.com',proxy:'DIRECT'}]};if(url.pathname==='/providers/rules')data={providers:{}};if(url.pathname==='/configs')data={mode:'rule'};return Response.json(data)};
-useApp.setState({init:async()=>{},settings,phase:'running',api:{port:65500,mixed_port:2176,secret:'test-only',started_at_ms:Date.now()-10000},version:'v1.19.30',down:13421772,up:866304,memory:99614720,connections:3,snapshot:{connections:[],downloadTotal:123456,uploadTotal:1234}});
-applyTheme('dark');window.uiFixture={theme:applyTheme,stop:()=>useApp.setState({phase:'stopped',api:null})};
+window.fetch=async(input,init)=>{
+  const url=new URL(input instanceof Request?input.url:String(input),location.href);
+  if(url.port!=='65500')return realFetch(input,init);
+  let data={};
+  if(url.pathname==='/proxies')data={proxies};
+  if(url.pathname==='/group')data={proxies:[group]};
+  if(url.pathname==='/rules')data={rules:[...appliedRules.filter(r=>r.enabled).map(r=>({type:'ProcessName',payload:r.process_name,proxy:r.target})),{type:'Domain',payload:'example.com',proxy:'DIRECT'}]};
+  if(url.pathname==='/providers/rules')data={providers:{}};
+  if(url.pathname==='/configs'){
+    if(init?.method==='PUT'){appliedRules=structuredClone(generatedRules);runtimeMode=generatedMode;}
+    data={mode:runtimeMode};
+  }
+  return Response.json(data);
+};
+useApp.setState({init:async()=>{},settings,phase:'running',mode:'rule',api,version:'v1.19.30',down:13421772,up:866304,memory:99614720,connections:3,snapshot:{connections:[],downloadTotal:123456,uploadTotal:1234}});
+applyTheme('dark');
+window.uiFixture={
+  theme:applyTheme,
+  stop:()=>useApp.setState({phase:'stopped',api:null}),
+  start:()=>useApp.setState({phase:'running',api}),
+  mode:value=>{runtimeMode=value;useApp.setState({mode:value});},
+  currentMode:()=>runtimeMode,
+  calls:()=>calls.slice(),
+  failNextSave:()=>{failSave=true;},
+  failNextApply:()=>{failApply=true;},
+  savedRules:()=>structuredClone(savedSettings.process_rules??[]),
+  appliedRules:()=>structuredClone(appliedRules),
+};
 createRoot(document.getElementById('root')).render(React.createElement(StrictMode,null,React.createElement(App)));
 </script></body></html>

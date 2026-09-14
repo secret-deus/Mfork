@@ -68,8 +68,8 @@ interface AppState {
    * apply live (mixed port, entering/leaving TUN mode).
    */
   applySettings: (patch: Partial<AppSettings>, how: "hot" | "restart") => Promise<void>;
-  /** regenerate config.yaml from the current profile + settings and hot-reload it */
-  reloadConfig: () => Promise<void>;
+  /** Returns true only when the same running core accepted the regenerated config. */
+  reloadConfig: () => Promise<boolean>;
   /** settings changed on disk behind our back (backup restore): reload */
   reloadSettings: () => Promise<void>;
   restart: () => Promise<void>;
@@ -365,12 +365,14 @@ export const useApp = create<AppState>((set, get) => {
   },
 
   async reloadConfig() {
-    const { api } = get();
-    if (!api) return;
-    const path = await configRegenerate();
-    if (!path) return;
+    const { api, phase, mode } = get();
+    if (!api || phase !== "running" || mode === null) return false;
+    const path = await configRegenerate(mode);
+    if (!path || get().api !== api || get().phase !== "running" || get().mode !== mode) return false;
     await hotReload(api, path);
+    if (get().api !== api || get().phase !== "running" || get().mode !== mode) return false;
     await get().syncConfig();
+    return get().api === api && get().phase === "running";
   },
 
   async setAutostart(enable) {

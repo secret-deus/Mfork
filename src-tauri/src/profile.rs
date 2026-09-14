@@ -7,7 +7,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::core::CoreState;
-use crate::settings::{write_atomic, AppSettings};
+use crate::settings::{normalize_process_rules, write_atomic, AppSettings, ProcessRule};
 
 /// Periodic auto-update: refresh due subscriptions; when the active one
 /// changed and the core is running, regenerate and tell the frontend to
@@ -287,15 +287,82 @@ pub fn profile_set_interval(app: AppHandle, id: String, hours: u32) -> Result<()
 pub fn config_regenerate(
     app: AppHandle,
     state: State<'_, CoreState>,
+    mode: Option<String>,
 ) -> Result<Option<String>, String> {
     let api = state.api.lock().unwrap().clone();
     match api {
         Some(api) => {
-            let path = generate_config(&app, api.port, &api.secret, api.mixed_port)?;
+            let path = generate_config_with_mode(&app, api.port, &api.secret, api.mixed_port, mode.as_deref())?;
             Ok(Some(path.to_string_lossy().to_string()))
         }
         None => Ok(None),
     }
+}
+
+/// Pure step of config generation: prepend the GUI-managed process-name
+/// rules to `doc`'s `rules`. Rules are normalized again so a config or a
+/// backup coming from disk can never inject a broken rule. Only enabled
+/// rules are inserted, and every target must exist in the final `proxies` or
+/// `proxy-groups` list — an enabled rule pointing at a missing target is an
+/// error, never a silent DIRECT fallback. Insertion order = settings order,
+/// all of them ahead of any existing rule.
+pub fn inject_process_rules(mut doc: Mapping, rules: &[ProcessRule]) -> Result<Mapping, String> {
+    let rules = normalize_process_rules(rules)?;
+    let targets = gather_targets(&doc);
+
+    let mut injected: Vec<Value> = Vec::new();
+    for r in rules.iter().filter(|r| r.enabled) {
+        if !targets.contains(&r.target.as_str()) {
+            return Err(format!(
+                "进程规则「{}」指向的目标「{}」在当前订阅中不存在，请修改目标或禁用该规则",
+                r.process_name, r.target
+            ));
+        }
+        injected.push(Value::String(format!(
+            "PROCESS-NAME,{},{}",
+            r.process_name, r.target
+        )));
+    }
+    if injected.is_empty() {
+        return Ok(doc);
+    }
+
+    let key = Value::String("rules".into());
+    match doc.get(&key) {
+        // existing rules must be a sequence; anything else cannot be extended
+        Some(Value::Sequence(seq)) => {
+            let mut out: Vec<Value> = Vec::with_capacity(seq.len() + injected.len());
+            out.append(&mut injected);
+            out.extend(seq.iter().cloned());
+            doc.insert(key, Value::Sequence(out));
+        }
+        Some(other) => {
+            return Err(format!(
+                "当前订阅的 rules 字段不是列表（实际为 {other:?}），无法写入进程规则"
+            ));
+        }
+        None => {
+            doc.insert(key, Value::Sequence(injected));
+        }
+    }
+    Ok(doc)
+}
+
+/// Exact valid targets for an injected rule: the mihomo builtins DIRECT and
+/// REJECT, proxy group names, then explicit proxy names (the latter two only
+/// when their container is a real sequence of maps).
+fn gather_targets(doc: &Mapping) -> Vec<&str> {
+    let mut out: Vec<&str> = vec!["DIRECT", "REJECT"];
+    for key in ["proxy-groups", "proxies"] {
+        if let Some(Value::Sequence(seq)) = doc.get(Value::String(key.into())) {
+            for item in seq {
+                if let Some(name) = item.get("name").and_then(|n| n.as_str()) {
+                    out.push(name);
+                }
+            }
+        }
+    }
+    out
 }
 
 #[tauri::command]
@@ -345,6 +412,16 @@ pub fn generate_config(
     secret: &str,
     mixed_port: u16,
 ) -> Result<PathBuf, String> {
+    generate_config_with_mode(app, api_port, secret, mixed_port, None)
+}
+
+fn generate_config_with_mode(
+    app: &AppHandle,
+    api_port: u16,
+    secret: &str,
+    mixed_port: u16,
+    mode: Option<&str>,
+) -> Result<PathBuf, String> {
     let idx = load_index(app).map_err(|e| format!("订阅索引损坏（profiles/index.json）: {e}"))?;
 
     let mut doc: Mapping = match idx.active.as_deref() {
@@ -383,6 +460,16 @@ pub fn generate_config(
     let tun_fd = *app.state::<CoreState>().tun_fd.lock().unwrap();
     let doc = inject_managed(doc, &s, api_port, secret, mixed_port, tun_fd);
 
+    // process-name routing is a desktop-only feature: Android has no process
+    // table access (find-process-mode stays "off" there), so the rules are
+    // skipped entirely rather than inserted and ignored.
+    let doc = if cfg!(target_os = "android") {
+        doc
+    } else {
+        inject_process_rules(doc, &s.process_rules)?
+    };
+    let doc = preserve_runtime_mode(doc, mode)?;
+
     let dir = app
         .path()
         .app_data_dir()
@@ -393,6 +480,18 @@ pub fn generate_config(
     let text = serde_yaml::to_string(&Value::Mapping(doc)).map_err(|e| e.to_string())?;
     write_atomic(&path, text.as_bytes())?;
     Ok(path)
+}
+
+/// A settings reload must not replace the user's active mode with the subscription's mode.
+/// Normal starts and profile switches pass None and retain their existing behavior.
+fn preserve_runtime_mode(mut doc: Mapping, mode: Option<&str>) -> Result<Mapping, String> {
+    if let Some(mode) = mode {
+        if !matches!(mode, "rule" | "global" | "direct") {
+            return Err("无效的代理模式".into());
+        }
+        doc.insert("mode".into(), mode.into());
+    }
+    Ok(doc)
 }
 
 /// Pure step of config generation: strip the fields the GUI owns (or that
@@ -523,6 +622,22 @@ mod tests {
         serde_yaml::from_str(s).unwrap()
     }
 
+    #[test]
+    fn settings_reload_preserves_requested_mode() {
+        let doc = yaml("mode: rule\nrules: [MATCH,DIRECT]");
+        for mode in ["rule", "global", "direct"] {
+            let out = preserve_runtime_mode(doc.clone(), Some(mode)).unwrap();
+            assert_eq!(get(&out, "mode").and_then(Value::as_str), Some(mode));
+            assert_eq!(get(&out, "rules"), get(&doc, "rules"));
+        }
+        assert_eq!(preserve_runtime_mode(doc.clone(), None).unwrap(), doc);
+    }
+
+    #[test]
+    fn settings_reload_rejects_invalid_mode() {
+        assert!(preserve_runtime_mode(Mapping::new(), Some("invalid")).is_err());
+    }
+
     fn get<'a>(m: &'a Mapping, k: &str) -> Option<&'a Value> {
         m.get(Value::String(k.into()))
     }
@@ -613,5 +728,129 @@ mod tests {
         // a profile that already runs its own dns keeps it
         let out2 = inject_managed(yaml("dns: {enable: true, nameserver: [9.9.9.9]}\nproxies: []"), &s, 1, "x", 2, Some(7));
         assert_eq!(get(&out2, "dns").unwrap()["nameserver"][0].as_str(), Some("9.9.9.9"));
+    }
+
+    fn rule(name: &str, target: &str, enabled: bool) -> ProcessRule {
+        ProcessRule {
+            process_name: name.into(),
+            target: target.into(),
+            enabled,
+        }
+    }
+
+    fn rules_of(doc: &Mapping) -> Vec<String> {
+        get(doc, "rules")
+            .unwrap()
+            .as_sequence()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap().to_string())
+            .collect()
+    }
+
+    #[test]
+    fn process_rules_are_prepended_before_domain_and_match() {
+        let doc = yaml(
+            "proxy-groups:\n  - {name: Auto, type: select, proxies: [DIRECT]}\n\
+             proxies:\n  - {name: HK, type: ss, server: 1.2.3.4, port: 1, cipher: aes-128-gcm, password: p}\n\
+             rules:\n  - DOMAIN,example.com,DIRECT\n  - MATCH,Auto\n",
+        );
+        let out = inject_process_rules(doc, &[rule("curl", "Auto", true)]).unwrap();
+        assert_eq!(
+            rules_of(&out),
+            vec![
+                "PROCESS-NAME,curl,Auto",
+                "DOMAIN,example.com,DIRECT",
+                "MATCH,Auto"
+            ]
+        );
+    }
+
+    #[test]
+    fn process_rules_keep_existing_order_and_their_own_order() {
+        let doc = yaml(
+            "proxy-groups:\n  - {name: Auto, type: select, proxies: [DIRECT]}\n\
+             proxies:\n  - {name: DIRECT, type: direct}\n\
+             rules:\n  - DOMAIN,a.com,DIRECT\n  - DOMAIN,b.com,DIRECT\n",
+        );
+        let out = inject_process_rules(
+            doc,
+            &[rule("curl", "Auto", true), rule("git", "DIRECT", true)],
+        )
+        .unwrap();
+        assert_eq!(
+            rules_of(&out),
+            vec![
+                "PROCESS-NAME,curl,Auto",
+                "PROCESS-NAME,git,DIRECT",
+                "DOMAIN,a.com,DIRECT",
+                "DOMAIN,b.com,DIRECT"
+            ]
+        );
+    }
+
+    #[test]
+    fn process_rules_no_rules_key_still_inserted() {
+        let doc = yaml("proxies:\n  - {name: DIRECT, type: direct}\n");
+        let out = inject_process_rules(doc, &[rule("curl", "DIRECT", true)]).unwrap();
+        assert_eq!(rules_of(&out), vec!["PROCESS-NAME,curl,DIRECT"]);
+    }
+
+    #[test]
+    fn process_rules_empty_set_leaves_doc_untouched() {
+        let doc = yaml("proxies: []\nrules:\n  - MATCH,DIRECT\n");
+        let out = inject_process_rules(doc.clone(), &[]).unwrap();
+        assert_eq!(out, doc, "no rules selected: the doc must be returned unchanged");
+        // all-disabled is the same as empty
+        let out2 = inject_process_rules(doc.clone(), &[rule("curl", "DIRECT", false)]).unwrap();
+        assert_eq!(out2, doc);
+    }
+
+    #[test]
+    fn process_rules_disabled_rule_with_missing_target_is_ignored() {
+        let doc = yaml("proxies: []\nrules:\n  - MATCH,DIRECT\n");
+        let out = inject_process_rules(doc.clone(), &[rule("curl", "NoSuchGroup", false)]).unwrap();
+        assert_eq!(out, doc);
+    }
+
+    #[test]
+    fn process_rules_enabled_missing_target_is_an_error() {
+        let doc = yaml("proxies: []\nrules:\n  - MATCH,DIRECT\n");
+        let err = inject_process_rules(doc, &[rule("curl", "NoSuchGroup", true)]).unwrap_err();
+        assert!(err.contains("curl"), "error must name the process: {err}");
+        assert!(err.contains("NoSuchGroup"), "error must name the target: {err}");
+        assert!(err.contains("禁用"), "error must advise disabling: {err}");
+    }
+
+    #[test]
+    fn process_rules_builtin_targets_are_valid() {
+        let doc = yaml("proxies: []\n");
+        for t in ["DIRECT", "REJECT"] {
+            let out = inject_process_rules(doc.clone(), &[rule("curl", t, true)]).unwrap();
+            assert_eq!(rules_of(&out), vec![format!("PROCESS-NAME,curl,{t}")]);
+        }
+    }
+
+    #[test]
+    fn process_rules_group_and_explicit_proxy_targets_are_valid() {
+        let doc = yaml(
+            "proxy-groups:\n  - {name: Auto, type: select, proxies: [HK]}\n\
+             proxies:\n  - {name: HK, type: ss, server: 1.2.3.4, port: 1, cipher: aes-128-gcm, password: p}\n",
+        );
+        assert!(inject_process_rules(doc.clone(), &[rule("curl", "Auto", true)]).is_ok());
+        assert!(inject_process_rules(doc, &[rule("curl", "HK", true)]).is_ok());
+    }
+
+    #[test]
+    fn process_rules_malformed_input_is_rejected() {
+        let doc = yaml("proxies: []\n");
+        // invalid name (path) is rejected before touching the doc
+        assert!(inject_process_rules(doc.clone(), &[rule("a/b", "DIRECT", true)]).is_err());
+        // duplicate names rejected
+        let dup = vec![rule("curl", "DIRECT", true), rule("CURL", "REJECT", true)];
+        assert!(inject_process_rules(doc.clone(), &dup).is_err());
+        // wrong rules type when adding
+        let bad_rules = yaml("proxies: []\nrules: not-a-list\n");
+        assert!(inject_process_rules(bad_rules, &[rule("curl", "DIRECT", true)]).is_err());
     }
 }
