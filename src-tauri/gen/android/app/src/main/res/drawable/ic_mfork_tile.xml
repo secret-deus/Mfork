@@ -1,0 +1,3 @@
+<inset xmlns:android="http://schemas.android.com/apk/res/android" android:inset="7.5%">
+    <bitmap android:src="@mipmap/ic_mfork_tile" android:gravity="fill" android:filter="true" />
+</inset>

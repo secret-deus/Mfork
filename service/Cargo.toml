@@ -1,0 +1,27 @@
+[package]
+name = "mfork-service"
+version = "0.1.20"
+edition = "2021"
+description = "Mfork elevated service: starts the mihomo core as SYSTEM for TUN mode"
+
+[[bin]]
+name = "mfork-service"
+path = "src/main.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+getrandom = "0.2"
+hmac = "0.12"
+sha2 = "0.10"
+
+[target.'cfg(windows)'.dependencies]
+windows-service = "0.7"
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Authorization", "Win32_System_Threading", "Win32_System_Memory", "Win32_System_Com", "Win32_Storage_FileSystem", "Win32_UI_Shell"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[profile.release]
+opt-level = "s"
+strip = true

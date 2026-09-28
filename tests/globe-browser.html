@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Globe regression checks</title></head><body><main style="max-width:700px;margin:20px auto;padding:12px"><h1>Three.js globe regression checks</h1><p>Test-only fixtures. No proxy or Tauri calls. Run with pnpm dev.</p><div id="fixture" style="height:460px;width:460px;max-width:100%;margin:auto"></div><button id="run">Run checks</button><pre id="results" style="white-space:pre-wrap;font:12px/1.7 monospace"></pre></main>
+<script type="module">
+import React, { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import Globe from '../src/components/Globe';
+import { applyTheme } from '../src/theme';
+import { useLocale } from '../src/i18n';
+import '../src/index.css';
+
+const style = document.createElement('style');style.textContent='body{overflow:auto!important}button#run{border:1px solid #556070;padding:8px 14px;margin:12px 0}h1{font-size:20px}p{font-size:12px;color:var(--t-mut)}';document.head.appendChild(style);
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+let frames = 0;
+// Three's render method is instance-owned; count actual GPU draw calls instead.
+for(const name of ['drawElements','drawArrays']) {
+  const original=WebGL2RenderingContext.prototype[name];
+  WebGL2RenderingContext.prototype[name]=function(...args){frames++;return original.apply(this,args)};
+}
+let root = createRoot(document.getElementById('fixture'));
+let data = { self: [121.47,31.23], nodes: [{name:'Tokyo',pos:[139.69,35.68],count:4},{name:'Berlin',pos:[13.4,52.52],count:2}], routes: [{key:'relay',hops:[{name:'Hong Kong',pos:[114.17,22.32]},{name:'Tokyo',pos:[139.69,35.68]}],conns:8,tone:'accent'}], active:true };
+const mount = () => root.render(React.createElement(StrictMode,null,React.createElement(Globe,data)));
+const canvas = () => document.querySelector('.globe-canvas');
+applyTheme('dark'); mount();
+window.globeFixture = { set: patch => { data={...data,...patch};mount(); }, theme: applyTheme };
+
+async function run() {
+  const result = [];
+  const assert = (condition, message) => { if(!condition)throw new Error(message);result.push('PASS '+message);document.getElementById('results').textContent=result.join('\n'); };
+  const savedMatchMedia=window.matchMedia;
+  const hiddenDescriptor=Object.getOwnPropertyDescriptor(document,'hidden');
+  const hostHidden=document.hidden;
+  const savedRAF=window.requestAnimationFrame, savedCAF=window.cancelAnimationFrame;
+  let testHidden=false;
+  // Some embedded test hosts stay backgrounded. Use a deterministic test clock
+  // only here; production continues using native RAF and visibility events.
+  if(hostHidden){root.unmount();window.requestAnimationFrame=callback=>setTimeout(()=>callback(performance.now()),16);window.cancelAnimationFrame=clearTimeout;}
+  Object.defineProperty(document,'hidden',{configurable:true,get:()=>testHidden});
+  if(hostHidden){root=createRoot(document.getElementById('fixture'));mount();}
+  try {
+    await wait(250);
+    assert(canvas() && !document.querySelector('.globe-fallback'),'StrictMode initializes a usable WebGL canvas');
+    const first=canvas();
+    assert(!first.getContext('webgl2').isContextLost(),'WebGL context is live');
+    for(let i=0;i<12;i++){data={...data,routes:data.routes.map(r=>({...r,conns:i}))};mount();await wait(18);}
+    assert(canvas()===first,'Live count updates retain the renderer canvas');
+    applyTheme('light');await wait(100);applyTheme('dark');await wait(100);
+    assert(canvas()===first && !document.querySelector('.globe-fallback'),'Theme changes retain the renderer');
+    first.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));
+    document.querySelector('.globe-reset').click();await wait(60);
+    assert(!document.querySelector('.globe-fallback'),'Keyboard rotation and reset remain available');
+    data={...data,active:false};mount();await wait(120);let before=frames;await wait(180);
+    assert(frames===before,'Inactive globe stops its animation loop');
+    data={...data,active:true};mount();await wait(160);before=frames;await wait(160);
+    assert(frames>before,'Active globe resumes animation');
+    testHidden=true;document.dispatchEvent(new Event('visibilitychange'));await wait(100);before=frames;await wait(100);
+    assert(frames===before,'Hidden globe pauses animation');
+    testHidden=false;document.dispatchEvent(new Event('visibilitychange'));await wait(100);
+    assert(frames>before,'Visible globe resumes animation');
+    const gl=first.getContext('webgl2'), extension=gl.getExtension('WEBGL_lose_context');
+    if(extension){extension.loseContext();await wait(120);assert(!!document.querySelector('.globe-fallback'),'Context loss shows a nonfatal status');extension.restoreContext();await wait(250);assert(!gl.isContextLost()&&!document.querySelector('.globe-fallback'),'Context restoration resumes the scene');}
+    useLocale.getState().setLocale('en');await wait(50);
+    assert(canvas().getAttribute('aria-label').startsWith('3D globe'),'Accessible label follows the locale');
+    root.unmount();await wait(100);assert(!canvas(),'Unmount removes the canvas');
+    assert(gl.isContextLost(),'Unmount releases the WebGL context');
+    window.matchMedia=query=>query.includes('prefers-reduced-motion')?{matches:true,addEventListener(){},removeEventListener(){}}:savedMatchMedia.call(window,query);
+    root=createRoot(document.getElementById('fixture'));mount();await wait(180);before=frames;await wait(180);
+    assert(frames===before,'Reduced motion disables continuous animation');
+    canvas().dispatchEvent(new KeyboardEvent('keydown',{key:'Home',bubbles:true}));document.querySelector('.globe-reset').click();await wait(80);
+    assert(!document.querySelector('.globe-fallback'),'Reduced-motion reset succeeds');
+    root.unmount();await wait(80);
+    window.matchMedia=savedMatchMedia;root=createRoot(document.getElementById('fixture'));mount();await wait(180);
+    assert(canvas()&&!document.querySelector('.globe-fallback'),'Remount after disposal succeeds');
+    window.globeTestResults={passed:result.length,failed:0,clock:hostHidden?'deterministic background-host clock':'native RAF'};
+  } catch(error) { result.push('FAIL '+error.message);window.globeTestResults={passed:result.filter(x=>x.startsWith('PASS')).length,failed:1,error:error.message}; }
+  finally {
+    if(hostHidden)root.unmount();
+    window.matchMedia=savedMatchMedia;
+    if(hiddenDescriptor)Object.defineProperty(document,'hidden',hiddenDescriptor);else delete document.hidden;
+    window.requestAnimationFrame=savedRAF;window.cancelAnimationFrame=savedCAF;
+    if(hostHidden){root=createRoot(document.getElementById('fixture'));mount();}
+    document.getElementById('results').textContent=result.join('\n');
+  }
+  return window.globeTestResults;
+}
+document.getElementById('run').onclick=()=>void run();window.runGlobeChecks=run;
+</script></body></html>

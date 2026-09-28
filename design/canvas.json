@@ -1,0 +1,13 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1280, "h": 800, "title": "概览 Overview" },
+    { "file": "Proxies.dc.html", "x": 1360, "y": 0, "w": 1280, "h": 800, "title": "代理 Proxies" },
+    { "file": "Profiles.dc.html", "x": 2720, "y": 0, "w": 1280, "h": 800, "title": "订阅 Profiles" },
+    { "file": "Connections.dc.html", "x": 0, "y": 900, "w": 1280, "h": 800, "title": "连接 Connections" },
+    { "file": "Settings.dc.html", "x": 1360, "y": 900, "w": 1280, "h": 800, "title": "设置 Settings" }
+  ],
+  "annotations": [
+    { "id": "design-notes", "x": 2720, "y": 900, "w": 340, "text": "Mfork 设计定稿 · 方向A 杂志排版\n· 名称 Mfork，logo 为「分流 Fork」单色几何标\n· 排版优先：Space Grotesk 大字号数字、留白、发丝线代替卡片、图标栏导航（64px）\n· 中性近黑底 #0b0c0f；accent #7c9cff 克制使用（选中态/进度/地图飞线）；成功 #3fd98c / 警告 #e8c15a / 错误 #f26d6d\n· 概览页：GeoJSON 大陆剪影地球出血裁切，仅标注可连接节点，本机→当前节点流光动画\n· 微标签体系：10px 大写字距 3px（页头）/ 9px 字距 2px（辅助信息）\n· 开发对应：Tauri 2 + React + shadcn/ui + Tailwind；覆写、规则、日志页按同语言补齐" }
+  ],
+  "launch": { "view": "canvas" }
+}

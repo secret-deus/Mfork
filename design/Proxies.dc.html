@@ -1,0 +1,134 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600&amp;display=swap">
+  <style>
+    body{margin:0;background:#0b0c0f;color:#ececef;font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+    a{color:#7c9cff}a:hover{color:#9db4ff}
+    .sg{font-family:"Space Grotesk","Segoe UI",system-ui,sans-serif}
+    .cap{font-size:10px;letter-spacing:3px;color:#5e626a;text-transform:uppercase}
+    .cap2{font-size:9px;letter-spacing:2px;color:#565b63;text-transform:uppercase}
+    .hair{height:1px;background:#1c1f24}
+    .ico{width:38px;height:38px;display:flex;align-items:center;justify-content:center;border-radius:10px;color:#54585f}
+    .ico.on{color:#f0f1f3;background:rgba(255,255,255,.06)}
+    .act{display:flex;align-items:center;gap:7px;font-size:12px;color:#9ba0a8}
+    .lg{color:#3fd98c}.ly{color:#e8c15a}.lr{color:#f26d6d}.lx{color:#565b63}
+    .cell{display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:1px solid #16181d}
+    .grow{display:flex;justify-content:space-between;align-items:center;padding:17px 0;border-bottom:1px solid #16181d}
+  </style>
+</helmet>
+<div style="width:1280px;height:800px;display:flex;background:#0b0c0f;overflow:hidden;border-radius:10px;border:1px solid #1e2126;box-sizing:border-box;position:relative">
+  <div style="width:64px;flex-shrink:0;border-right:1px solid #16181d;display:flex;flex-direction:column;align-items:center;padding:14px 0;gap:4px;box-sizing:border-box;z-index:2">
+    <div style="width:30px;height:30px;border-radius:9px;background:#f2f3f5;display:flex;align-items:center;justify-content:center;margin-bottom:18px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#101114" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12h5.5c2.2 0 3.2-1.6 4.6-3.2 1.3-1.5 2.4-2.3 4.4-2.3h2.5"></path><path d="M9 12c2.2 0 3.2 1.6 4.6 3.2 1.3 1.5 2.4 2.3 4.4 2.3h2.5"></path><circle cx="3.5" cy="12" r="1.5" fill="#101114" stroke="none"></circle></svg></div>
+    <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg></div>
+    <div class="ico on"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18"></path><ellipse cx="12" cy="12" rx="4" ry="9"></ellipse></svg></div>
+    <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5"></path></svg></div>
+    <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9"></path><circle cx="17" cy="6" r="2.5"></circle><path d="M20 12h-9"></path><circle cx="7" cy="12" r="2.5"></circle><path d="M4 18h9"></path><circle cx="17" cy="18" r="2.5"></circle></svg></div>
+    <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 8-6-16-3 8H2"></path></svg></div>
+    <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 5H3l7 8v5l4 2v-7z"></path></svg></div>
+    <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m5 7 5 5-5 5"></path><path d="M13 17h7"></path></svg></div>
+    <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg></div>
+    <div style="flex:1"></div>
+    <span style="width:7px;height:7px;border-radius:50%;background:#3fd98c;display:block"></span>
+  </div>
+  <div style="position:absolute;top:0;right:0;height:34px;display:flex;align-items:center;padding:0 6px;gap:2px;z-index:3">
+    <div style="width:30px;height:26px;display:flex;align-items:center;justify-content:center"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="#8b8f97" stroke-width="1.2"><path d="M2 6h8"></path></svg></div>
+    <div style="width:30px;height:26px;display:flex;align-items:center;justify-content:center"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="#8b8f97" stroke-width="1.2"><rect x="2.5" y="2.5" width="7" height="7" rx="1"></rect></svg></div>
+    <div style="width:30px;height:26px;display:flex;align-items:center;justify-content:center"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="#8b8f97" stroke-width="1.2"><path d="m2.5 2.5 7 7M9.5 2.5l-7 7"></path></svg></div>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;padding:46px 56px 30px;box-sizing:border-box;min-width:0">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <div class="cap">Mfork · 代理 Proxies</div>
+      <div style="display:flex;gap:26px">
+        <div class="act"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h13M3 12h9M3 18h5"></path><path d="m17 14 3 3 3-3"></path><path d="M20 8v9"></path></svg><span>按延迟排序</span></div>
+        <div class="act" style="color:#f0f1f3"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7z"></path></svg><span>全部测速</span></div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:30px">
+      <div style="display:flex;align-items:baseline;gap:14px">
+        <span style="font-size:22px;font-weight:600">节点选择</span>
+        <span class="cap2">Select</span>
+        <span class="cap2">12 nodes</span>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <span class="cap2">当前</span>
+        <span style="font-size:13px;color:#c3c8d0">香港 IEPL-01</span>
+        <span class="sg lg" style="font-size:13px">42ms</span>
+      </div>
+    </div>
+    <div class="hair" style="margin-top:14px;background:#24272e"></div>
+    <div style="display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));column-gap:48px">
+      <div class="cell"><div style="display:flex;align-items:center;gap:9px"><span style="width:6px;height:6px;border-radius:50%;background:#7c9cff;display:block"></span><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;color:#f0f1f3">香港 IEPL-01</span><span class="cap2">Hysteria2</span></div></div><span class="sg lg" style="font-size:14px">42</span></div>
+      <div class="cell"><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;color:#b6bac2">香港 IEPL-02</span><span class="cap2">Hysteria2</span></div><span class="sg lg" style="font-size:14px">51</span></div>
+      <div class="cell"><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;color:#b6bac2">台湾 HINET-01</span><span class="cap2">VLESS</span></div><span class="sg lg" style="font-size:14px">68</span></div>
+      <div class="cell"><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;color:#b6bac2">新加坡-01</span><span class="cap2">VLESS</span></div><span class="sg lg" style="font-size:14px">76</span></div>
+      <div class="cell"><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;color:#b6bac2">日本 东京-01</span><span class="cap2">Trojan</span></div><span class="sg lg" style="font-size:14px">89</span></div>
+      <div class="cell"><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;color:#b6bac2">韩国 首尔-01</span><span class="cap2">VMess</span></div><span class="sg lg" style="font-size:14px">95</span></div>
+      <div class="cell"><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;color:#b6bac2">日本 大阪-01</span><span class="cap2">Trojan</span></div><span class="sg ly" style="font-size:14px">102</span></div>
+      <div class="cell"><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;color:#b6bac2">美国 洛杉矶</span><span class="cap2">TUIC</span></div><span class="sg ly" style="font-size:14px">168</span></div>
+      <div class="cell"><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;color:#b6bac2">美国 圣何塞</span><span class="cap2">TUIC</span></div><span class="sg ly" style="font-size:14px">175</span></div>
+      <div class="cell"><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;color:#b6bac2">德国 法兰克福</span><span class="cap2">VLESS</span></div><span class="sg ly" style="font-size:14px">289</span></div>
+      <div class="cell"><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;color:#b6bac2">英国 伦敦-01</span><span class="cap2">VMess</span></div><span class="sg lr" style="font-size:14px">312</span></div>
+      <div class="cell"><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;color:#565b63">澳门-01</span><span class="cap2">SS</span></div><span class="sg lx" style="font-size:12px">超时</span></div>
+    </div>
+    <div style="height:26px"></div>
+    <div class="grow">
+      <div style="display:flex;align-items:baseline;gap:14px">
+        <span style="font-size:15px;font-weight:600;color:#d6d9de">自动选择</span>
+        <span class="cap2">URL-Test</span>
+        <span class="cap2">12 nodes</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:12px;color:#8b8f97">香港 IEPL-01 · <span class="sg lg">42ms</span></span>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#565b63" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg>
+      </div>
+    </div>
+    <div class="grow">
+      <div style="display:flex;align-items:baseline;gap:14px">
+        <span style="font-size:15px;font-weight:600;color:#d6d9de">流媒体解锁</span>
+        <span class="cap2">Select</span>
+        <span class="cap2">6 nodes</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:12px;color:#8b8f97">新加坡-01</span>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#565b63" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg>
+      </div>
+    </div>
+    <div class="grow">
+      <div style="display:flex;align-items:baseline;gap:14px">
+        <span style="font-size:15px;font-weight:600;color:#d6d9de">微软服务</span>
+        <span class="cap2">Select</span>
+        <span class="cap2">3 nodes</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:12px;color:#8b8f97">DIRECT</span>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#565b63" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg>
+      </div>
+    </div>
+    <div class="grow" style="border-bottom:none">
+      <div style="display:flex;align-items:baseline;gap:14px">
+        <span style="font-size:15px;font-weight:600;color:#d6d9de">兜底分流</span>
+        <span class="cap2">Fallback</span>
+        <span class="cap2">4 nodes</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:12px;color:#8b8f97">节点选择</span>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#565b63" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

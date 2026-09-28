@@ -1,0 +1,49 @@
+[package]
+name = "mfork"
+version = "0.1.20"
+description = "Mfork - a mihomo desktop client"
+authors = ["mfork"]
+edition = "2021"
+
+[lib]
+name = "mfork_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["image-png"] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+fastrand = "2"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "gzip", "json", "rustls-tls", "charset", "http2"] }
+boa_engine = "0.20"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+flate2 = "1"
+getrandom = "0.2"
+hmac = "0.12"
+sha2 = "0.10"
+
+# desktop only: tray, OS proxy, launch-at-login, single instance, updater
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+sysproxy = "0.3"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Authorization", "Win32_System_Threading", "Win32_System_JobObjects", "Win32_System_Memory", "Win32_System_Com", "Win32_Storage_FileSystem", "Win32_UI_Shell"] }
+
+[profile.release]
+# smaller shipped binaries on every platform; matters most for the Android APK
+lto = true
+codegen-units = 1
+strip = true

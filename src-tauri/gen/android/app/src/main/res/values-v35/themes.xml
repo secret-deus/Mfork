@@ -1,0 +1,8 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- targetSdk 35+ draws the WebView edge-to-edge (under the status and
+         navigation bars). The web layout has no inset handling yet, so keep
+         the system fitting the window until the UI reads safe-area insets. -->
+    <style name="Theme.mfork" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="android:windowOptOutEdgeToEdgeEnforcement" tools:targetApi="35">true</item>
+    </style>
+</resources>

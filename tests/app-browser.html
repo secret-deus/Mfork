@@ -1,0 +1,101 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MFORK application UI test</title></head><body><div id="root"></div><script type="module">
+import React,{StrictMode} from 'react';
+import {createRoot} from 'react-dom/client';
+import {mockIPC,mockWindows} from '@tauri-apps/api/mocks';
+import App from '../src/App';
+import {useApp} from '../src/store';
+import {applyTheme} from '../src/theme';
+import '../src/index.css';
+
+const settings={schema:1,mixed_port:2176,last_mixed_port:2176,allow_lan:false,ipv6:false,system_proxy:true,proxy_bypass:'localhost;127.*;192.168.*',silent_start:false,tun:{enable:false,stack:'mixed',auto_route:true,strict_route:true,dns_hijack:true,mtu:1500},dns:{enable:true,enhanced_mode:'fake-ip',nameserver:['https://dns.example/dns-query'],fallback:[]},core_channel:'stable',theme:'dark',locale:'zh-CN',webdav:{url:'',username:'',password:''},process_rules:[]};
+const group={name:'节点选择',type:'Selector',now:'JP 日本 东京 01',all:['JP 日本 东京 01','HK 香港 01','US 洛杉矶 01'],history:[]};
+const proxies={};
+for(const [name,delay] of [['JP 日本 东京 01',42],['HK 香港 01',38],['US 洛杉矶 01',230]])proxies[name]={name,type:'Shadowsocks',history:[{time:new Date().toISOString(),delay}],alive:true};
+proxies[group.name]=group;
+let savedSettings=structuredClone(settings), appliedRules=[], generatedRules=[], failSave=false, failApply=false, runtimeMode='rule', generatedMode='rule';
+const calls=[];
+const api={port:65500,mixed_port:2176,secret:'test-only',started_at_ms:Date.now()-10000};
+let mockOverrides=[], overrideContents={}, failOverrideWrite=false, failPut=false, failModeRead=false, operationDelay=0;
+
+mockIPC(async (cmd,payload)=>{
+  calls.push(cmd);
+  if(operationDelay && /^(override_|config_regenerate)/.test(cmd))await new Promise(r=>setTimeout(r,operationDelay));
+  if(cmd==='profiles_list')return {active:null,items:[]};
+  if(cmd==='overrides_list')return structuredClone(mockOverrides);
+  if(cmd==='override_create'){
+    const meta={id:crypto.randomUUID(),name:payload.name,kind:payload.kind,enabled:payload.enabled??true};
+    mockOverrides.push(meta);overrideContents[meta.id]=payload.kind==='js'?'function main(config) { return config; }':'# YAML override\n';return structuredClone(meta);
+  }
+  if(cmd==='override_write'){
+    if(failOverrideWrite){failOverrideWrite=false;throw new Error('Fixture override write failed');}
+    overrideContents[payload.id]=payload.content;return null;
+  }
+  if(cmd==='override_read')return overrideContents[payload.id];
+  if(cmd==='override_delete'){mockOverrides=mockOverrides.filter(o=>o.id!==payload.id);delete overrideContents[payload.id];return null;}
+  if(cmd==='override_toggle'){mockOverrides.find(o=>o.id===payload.id).enabled=payload.enabled;return null;}
+  if(cmd==='override_move'){
+    const i=mockOverrides.findIndex(o=>o.id===payload.id),j=i+(payload.up?-1:1);
+    if(i>=0&&j>=0&&j<mockOverrides.length)[mockOverrides[i],mockOverrides[j]]=[mockOverrides[j],mockOverrides[i]];return null;
+  }
+  if(cmd==='service_status')return {installed:false,reachable:false};
+  if(cmd==='core_version_info')return {installed:'v1.19.30',bundled:'v1.19.30',upgraded:false};
+  if(cmd==='settings_get')return structuredClone(savedSettings);
+  if(cmd==='settings_set'){
+    if(failSave){failSave=false;throw new Error('Fixture save failed');}
+    savedSettings=structuredClone(payload.settings);return null;
+  }
+  if(cmd==='config_regenerate'){
+    if(failApply){failApply=false;throw new Error('Fixture apply failed');}
+    generatedMode=payload?.mode??'rule';generatedRules=structuredClone(savedSettings.process_rules??[]);
+    return 'test-only-config.yaml';
+  }
+  if(cmd==='autostart_get')return false;
+  return null;
+});
+mockWindows('main');
+const realFetch=window.fetch;
+window.fetch=async(input,init)=>{
+  const url=new URL(input instanceof Request?input.url:String(input),location.href);
+  if(url.port!=='65500')return realFetch(input,init);
+  let data={};
+  if(url.pathname==='/proxies')data={proxies};
+  if(url.pathname==='/group')data={proxies:[group]};
+  if(url.pathname==='/rules')data={rules:[...appliedRules.filter(r=>r.enabled).map(r=>({type:'ProcessName',payload:r.process_name,proxy:r.target})),{type:'Domain',payload:'example.com',proxy:'DIRECT'}]};
+  if(url.pathname==='/providers/rules')data={providers:{}};
+  if(url.pathname==='/configs'){
+    calls.push(`${init?.method??'GET'} /configs`);
+    if(init?.method==='PATCH')runtimeMode=JSON.parse(init.body).mode;
+    if(!init?.method || init.method==='GET'){if(failModeRead){failModeRead=false;return Response.json({error:'Fixture mode read failed'},{status:503});}}
+    if(init?.method==='PUT'){
+      if(failPut){failPut=false;return Response.json({error:'Fixture controller rejected config'},{status:500});}
+      appliedRules=structuredClone(generatedRules);runtimeMode=generatedMode;
+    }
+    data={mode:runtimeMode};
+  }
+  return Response.json(data);
+};
+useApp.setState({init:async()=>{},settings,phase:'running',mode:'rule',api,version:'v1.19.30',down:13421772,up:866304,memory:99614720,connections:3,snapshot:{connections:[],downloadTotal:123456,uploadTotal:1234}});
+applyTheme('dark');
+window.uiFixture={
+  theme:applyTheme,
+  stop:()=>useApp.setState({phase:'stopped',api:null}),
+  start:()=>useApp.setState({phase:'running',api}),
+  mode:value=>{runtimeMode=value;useApp.setState({mode:value});},
+  currentMode:()=>runtimeMode,
+  calls:()=>calls.slice(),
+  failNextSave:()=>{failSave=true;},
+  failNextApply:()=>{failApply=true;},
+  savedRules:()=>structuredClone(savedSettings.process_rules??[]),
+  appliedRules:()=>structuredClone(appliedRules),
+  overrides:()=>structuredClone(mockOverrides),
+  overrideContents:()=>structuredClone(overrideContents),
+  failNextOverrideWrite:()=>{failOverrideWrite=true;},
+  failNextPut:()=>{failPut=true;},
+  failNextModeRead:()=>{failModeRead=true;},
+  delay:ms=>{operationDelay=ms;},
+  pending:()=>useApp.getState().configPending,
+  reload:()=>useApp.getState().reloadConfig(),
+  setMode:mode=>useApp.getState().setMode(mode),
+};
+createRoot(document.getElementById('root')).render(React.createElement(StrictMode,null,React.createElement(App)));
+</script></body></html>

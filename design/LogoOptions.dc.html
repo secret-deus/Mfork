@@ -1,0 +1,112 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&amp;display=swap">
+  <style>
+    body{margin:0;background:#0b0c0f;color:#ececef;font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+    .sg{font-family:"Space Grotesk","Segoe UI",system-ui,sans-serif}
+    .cap{font-size:10px;letter-spacing:3px;color:#5e626a;text-transform:uppercase}
+    .card{background:#121317;border:1px solid #1f2228;border-radius:12px;padding:22px;display:flex;flex-direction:column;gap:16px}
+    .tileW{width:64px;height:64px;border-radius:16px;background:#f2f3f5;color:#101114;display:flex;align-items:center;justify-content:center}
+    .tileD{width:64px;height:64px;border-radius:16px;background:#0b0c0f;border:1px solid #24272e;color:#ececef;display:flex;align-items:center;justify-content:center}
+    .rail{display:flex;align-items:center;gap:8px;background:#0e0f13;border:1px solid #1c1f24;border-radius:9px;padding:7px 10px}
+    .tileS{width:26px;height:26px;border-radius:8px;background:#f2f3f5;color:#101114;display:flex;align-items:center;justify-content:center}
+    .nm{font-size:14px;font-weight:600}
+    .note{font-size:11px;color:#8b8f97;line-height:1.55}
+  </style>
+</helmet>
+<div style="width:1180px;height:780px;background:#0b0c0f;border:1px solid #1e2126;border-radius:10px;box-sizing:border-box;padding:36px 44px;display:flex;flex-direction:column;gap:24px">
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <div class="cap">Logo 提案 · 6 候选</div>
+    <div style="font-size:13px;color:#8b8f97">全部为单色几何标，适配方向 A 的杂志排版语言；每个展示亮底 / 暗底 / 侧栏实装三种状态</div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:18px;flex:1">
+
+    <div class="card">
+      <div style="display:flex;gap:12px;align-items:center">
+        <div class="tileW"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 11.5V5l4 2.6h5L18.5 5v6.5a6.5 6.5 0 0 1-13 0Z"></path><circle cx="9.5" cy="12.5" r="0.4" fill="currentColor"></circle><circle cx="14.5" cy="12.5" r="0.4" fill="currentColor"></circle></svg></div>
+        <div class="tileD"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 11.5V5l4 2.6h5L18.5 5v6.5a6.5 6.5 0 0 1-13 0Z"></path><circle cx="9.5" cy="12.5" r="0.4" fill="currentColor"></circle><circle cx="14.5" cy="12.5" r="0.4" fill="currentColor"></circle></svg></div>
+        <div class="rail"><div class="tileS"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 11.5V5l4 2.6h5L18.5 5v6.5a6.5 6.5 0 0 1-13 0Z"></path></svg></div><span style="font-size:11px;color:#8b8f97">侧栏</span></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <span class="nm">1 · 喵形 Meta</span>
+        <span class="note">极简猫头轮廓，致敬 Clash Meta 的猫系血统；老用户一眼懂，情感分最高</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;gap:12px;align-items:center">
+        <div class="tileW"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="5.5"></circle><ellipse cx="12" cy="12" rx="10" ry="3.6" transform="rotate(-28 12 12)"></ellipse><circle cx="20.2" cy="7.6" r="1.7" fill="currentColor" stroke="none"></circle></svg></div>
+        <div class="tileD"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="5.5"></circle><ellipse cx="12" cy="12" rx="10" ry="3.6" transform="rotate(-28 12 12)"></ellipse><circle cx="20.2" cy="7.6" r="1.7" fill="currentColor" stroke="none"></circle></svg></div>
+        <div class="rail"><div class="tileS"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5.5"></circle><ellipse cx="12" cy="12" rx="10" ry="3.6" transform="rotate(-28 12 12)"></ellipse><circle cx="20.2" cy="7.6" r="1.7" fill="currentColor" stroke="none"></circle></svg></div><span style="font-size:11px;color:#8b8f97">侧栏</span></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <span class="nm">2 · 轨道 Orbit</span>
+        <span class="note">星球 + 环绕轨道上的节点，和概览页的地球主视觉一脉相承</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;gap:12px;align-items:center">
+        <div class="tileW"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12h5.5c2.2 0 3.2-1.6 4.6-3.2 1.3-1.5 2.4-2.3 4.4-2.3h2.5"></path><path d="M9 12c2.2 0 3.2 1.6 4.6 3.2 1.3 1.5 2.4 2.3 4.4 2.3h2.5"></path><circle cx="3.5" cy="12" r="1.5" fill="currentColor" stroke="none"></circle></svg></div>
+        <div class="tileD"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12h5.5c2.2 0 3.2-1.6 4.6-3.2 1.3-1.5 2.4-2.3 4.4-2.3h2.5"></path><path d="M9 12c2.2 0 3.2 1.6 4.6 3.2 1.3 1.5 2.4 2.3 4.4 2.3h2.5"></path><circle cx="3.5" cy="12" r="1.5" fill="currentColor" stroke="none"></circle></svg></div>
+        <div class="rail"><div class="tileS"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12h5.5c2.2 0 3.2-1.6 4.6-3.2 1.3-1.5 2.4-2.3 4.4-2.3h2.5"></path><path d="M9 12c2.2 0 3.2 1.6 4.6 3.2 1.3 1.5 2.4 2.3 4.4 2.3h2.5"></path></svg></div><span style="font-size:11px;color:#8b8f97">侧栏</span></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <span class="nm">3 · 分流 Fork</span>
+        <span class="note">一条流量分成两路，规则分流是 mihomo 的本质动作；语义最准</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;gap:12px;align-items:center">
+        <div class="tileW"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H9V9h6v6h-2.5v-3"></path></svg></div>
+        <div class="tileD"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H9V9h6v6h-2.5v-3"></path></svg></div>
+        <div class="rail"><div class="tileS"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H9V9h6v6h-2.5v-3"></path></svg></div><span style="font-size:11px;color:#8b8f97">侧栏</span></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <span class="nm">4 · 回廊 Tunnel</span>
+        <span class="note">回形隧道，隐喻代理隧道与嵌套链路；几何感最强，做动效潜力大</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;gap:12px;align-items:center">
+        <div class="tileW"><span class="sg" style="font-size:30px;font-weight:600;line-height:1">M<span style="color:#7c9cff">.</span></span></div>
+        <div class="tileD"><span class="sg" style="font-size:30px;font-weight:600;line-height:1">M<span style="color:#7c9cff">.</span></span></div>
+        <div class="rail"><div class="tileS"><span class="sg" style="font-size:13px;font-weight:600">M<span style="color:#7c9cff">.</span></span></div><span style="font-size:11px;color:#8b8f97">侧栏</span></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <span class="nm">5 · 字标 M.</span>
+        <span class="note">纯排版派：Space Grotesk 的 M + 一颗 accent 句点，和方向 A 的杂志语言最统一</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;gap:12px;align-items:center">
+        <div class="tileW"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9Z"></path><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"></circle><path d="M12 10.4V6.6M13.4 12.8l3.3 1.9M10.6 12.8l-3.3 1.9"></path></svg></div>
+        <div class="tileD"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9Z"></path><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"></circle><path d="M12 10.4V6.6M13.4 12.8l3.3 1.9M10.6 12.8l-3.3 1.9"></path></svg></div>
+        <div class="rail"><div class="tileS"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9Z"></path><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"></circle></svg></div><span style="font-size:11px;color:#8b8f97">侧栏</span></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <span class="nm">6 · 蜂巢 Hex</span>
+        <span class="note">六边形节点向三方辐射，网格/中枢的隐喻；最「基础设施」气质</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1180,"height":780}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mfork 架构与数据包流向</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0b0c0f;
+    --surface: #121317;
+    --line-faint: #131519;
+    --line-soft: #16181d;
+    --line: #1c1f24;
+    --line-strong: #24272e;
+    --fg: #ececef;
+    --fg-2: #e2e5ea;
+    --fg-3: #cdd2da;
+    --mut: #b8bec8;
+    --dim: #9aa1ac;
+    --faint: #626871;
+    --accent: #4f9cff;
+    --ok: #62e39a;
+    --warn: #ffb86b;
+    --err: #f26d6d;
+    --grid: rgba(255, 255, 255, 0.025);
+    --glow: 0.9;
+  }
+  [data-theme="light"] {
+    --bg: #f7f7f8;
+    --surface: #ffffff;
+    --line-faint: #ededef;
+    --line-soft: #e6e7ea;
+    --line: #dcdee2;
+    --line-strong: #cbcfd6;
+    --fg: #141518;
+    --fg-2: #2b2e33;
+    --fg-3: #4a4e56;
+    --mut: #6b7079;
+    --dim: #9a9ea6;
+    --faint: #c8cbd1;
+    --accent: #2b6fe0;
+    --ok: #1f9d5c;
+    --warn: #a8801a;
+    --err: #d64545;
+    --grid: rgba(0, 0, 0, 0.035);
+    --glow: 0.45;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); }
+  body {
+    font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    transition: background-color .2s ease, color .2s ease;
+  }
+  .sg { font-family: "Space Grotesk", "Segoe UI", system-ui, sans-serif; }
+  .cap { font-size: 10px; letter-spacing: 3px; color: var(--dim); text-transform: uppercase; }
+  .cap2 { font-size: 9px; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; }
+
+  .page { max-width: 1480px; margin: 0 auto; padding: 44px 56px 64px; }
+
+  header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+  header h1 { margin: 10px 0 0; font-weight: 500; font-size: 34px; letter-spacing: -0.5px; line-height: 1.1; }
+  header h1 span { color: var(--mut); font-weight: 300; }
+  .controls { display: flex; align-items: center; gap: 22px; padding-bottom: 6px; }
+  .chips { display: flex; gap: 14px; }
+  .chip {
+    background: none; border: 0; padding: 0 0 5px; cursor: pointer; font: inherit;
+    font-size: 12.5px; color: var(--dim); border-bottom: 2px solid transparent; transition: color .15s, border-color .15s;
+  }
+  .chip:hover { color: var(--mut); }
+  .chip.on { color: var(--fg); border-bottom-color: var(--accent); }
+  .sep { width: 1px; height: 16px; background: var(--line); }
+  .btn { background: none; border: 0; padding: 0 0 5px; cursor: pointer; font: inherit; font-size: 12px; color: var(--mut); }
+  .btn:hover { color: var(--fg); }
+  .btn .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); margin-right: 7px; vertical-align: 1px; }
+  .btn.paused .dot { background: var(--faint); }
+
+  .stage { position: relative; margin-top: 28px; border-top: 1px solid var(--line-strong); padding-top: 18px; }
+  .stage svg { display: block; width: 100%; height: auto; }
+
+  /* ---------- svg parts ---------- */
+  .region { fill: none; stroke: var(--line); stroke-dasharray: 3 5; }
+  .region-label { font-size: 10px; letter-spacing: 3px; fill: var(--dim); text-transform: uppercase; }
+  .app-boundary { fill: rgba(79, 156, 255, 0.03); stroke: var(--line-strong); }
+  [data-theme="light"] .app-boundary { fill: rgba(74, 107, 224, 0.04); }
+
+  .node { cursor: default; transition: opacity .25s ease; }
+  .node rect.box { fill: var(--surface); stroke: var(--line-strong); }
+  .node.k-external rect.box { fill: transparent; stroke-dasharray: 3 4; }
+  .node.k-security rect.box { stroke: color-mix(in srgb, var(--err) 45%, var(--line-strong)); }
+  .node.k-cloud rect.box { stroke: color-mix(in srgb, var(--accent) 45%, var(--line-strong)); }
+  .node.k-core rect.box { stroke: var(--fg-3); }
+  .node .title { font-size: 14px; font-weight: 600; fill: var(--fg); }
+  .node .sub { font-size: 10.5px; fill: var(--mut); }
+  .node .tag { font-size: 9px; letter-spacing: 1.5px; fill: var(--dim); text-transform: uppercase; }
+  .node .glyph { fill: none; stroke: var(--fg-3); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .node.k-security .glyph { stroke: var(--err); }
+  .node.k-cloud .glyph { stroke: var(--accent); }
+  .node.k-core .glyph { stroke: var(--ok); }
+  .node rect.box { transition: stroke .2s ease; }
+  .node.hot rect.box { stroke: var(--fg-2); }
+
+  .edge { fill: none; stroke-width: 1.2; transition: opacity .25s ease; }
+  .edge.data { stroke: var(--ok); stroke-opacity: .55; }
+  .edge.control { stroke: var(--accent); stroke-opacity: .45; stroke-dasharray: 5 5; }
+  .edge.priv { stroke: var(--err); stroke-opacity: .55; }
+  .edge.direct { stroke: var(--warn); stroke-opacity: .5; stroke-dasharray: 2 6; stroke-linecap: round; }
+  .edge.hot { stroke-opacity: 1; stroke-width: 1.6; }
+  .edge-hit { fill: none; stroke: transparent; stroke-width: 18; }
+
+  .elabel { font-size: 10px; letter-spacing: 1px; fill: var(--mut); }
+  .elabel.data { fill: var(--ok); opacity: .8; }
+  .elabel.control { fill: var(--accent); opacity: .8; }
+  .elabel.priv { fill: var(--err); opacity: .85; }
+  .elabel.direct { fill: var(--warn); opacity: .85; }
+  .elabel-bg { fill: var(--bg); }
+
+  .pkt { transition: opacity .25s ease; }
+  .pkt .halo { opacity: calc(var(--glow) * 0.55); }
+  .pkt.data .core, .pkt.data .halo { fill: var(--ok); }
+  .pkt.control .core, .pkt.control .halo { fill: var(--accent); }
+  .pkt.priv .core, .pkt.priv .halo { fill: var(--err); }
+  .pkt.direct .core, .pkt.direct .halo { fill: var(--warn); }
+
+  .dimmed { opacity: .12; }
+  .hidden-flow { opacity: 0; }
+  .paused * { animation-play-state: paused; }
+
+  .tip {
+    position: absolute; pointer-events: none; z-index: 5; max-width: 300px;
+    background: var(--surface); border: 1px solid var(--line-strong); border-radius: 8px;
+    padding: 10px 12px; font-size: 12px; line-height: 1.55; color: var(--fg-2);
+    opacity: 0; transform: translateY(4px); transition: opacity .15s ease, transform .15s ease;
+    box-shadow: 0 12px 40px rgba(0,0,0,.35);
+  }
+  .tip.show { opacity: 1; transform: none; }
+  .tip b { display: block; color: var(--fg); font-weight: 600; margin-bottom: 3px; }
+
+  /* ---------- journey ---------- */
+  .journey { margin-top: 22px; display: flex; align-items: center; gap: 28px; border-top: 1px solid var(--line-soft); padding-top: 18px; }
+  .journey .lead { display: flex; flex-direction: column; gap: 4px; min-width: 150px; }
+  .journey .steps { display: flex; flex: 1; gap: 0; }
+  .step { flex: 1; padding: 8px 16px 8px 0; border-left: 1px solid var(--line); padding-left: 14px; transition: opacity .3s ease; opacity: .35; }
+  .step .n { font-size: 22px; font-weight: 300; color: var(--fg); line-height: 1; }
+  .step .t { font-size: 12px; color: var(--fg-2); margin-top: 6px; }
+  .step .d { font-size: 10.5px; color: var(--dim); margin-top: 2px; }
+  .step.lit { opacity: 1; }
+  .step.lit .n { color: var(--ok); }
+  .journey .go { background: none; border: 0; font: inherit; font-size: 12.5px; font-weight: 600; letter-spacing: 1px; color: var(--accent); cursor: pointer; text-align: left; padding: 0; }
+  .journey .go:hover { color: var(--fg); }
+  .journey .go:disabled { color: var(--dim); cursor: default; }
+
+  /* ---------- notes ---------- */
+  .notes { margin-top: 34px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border-top: 1px solid var(--line-strong); }
+  .note { padding: 22px 28px 8px 0; }
+  .note + .note { padding-left: 28px; border-left: 1px solid var(--line-soft); }
+  .note h3 { margin: 0 0 12px; font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+  .note h3 i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+  .note ul { margin: 0; padding: 0; list-style: none; }
+  .note li { position: relative; padding: 7px 0 7px 14px; font-size: 12.5px; line-height: 1.6; color: var(--fg-3); border-bottom: 1px solid var(--line-faint); }
+  .note li:last-child { border-bottom: 0; }
+  .note li::before { content: ""; position: absolute; left: 0; top: 15px; width: 5px; height: 1px; background: var(--faint); }
+  .note code { font-family: "Cascadia Code", Consolas, monospace; font-size: 11px; color: var(--fg-2); }
+
+  .legend { display: flex; gap: 22px; margin-top: 14px; }
+  .legend span { display: inline-flex; align-items: center; gap: 8px; font-size: 10.5px; color: var(--mut); }
+  .legend i { width: 22px; height: 0; border-top: 1.5px solid; display: inline-block; }
+  .legend .l-data i { border-color: var(--ok); }
+  .legend .l-control i { border-color: var(--accent); border-top-style: dashed; }
+  .legend .l-priv i { border-color: var(--err); }
+  .legend .l-direct i { border-color: var(--warn); border-top-style: dotted; }
+
+  footer { margin-top: 40px; display: flex; justify-content: space-between; }
+
+  /* ?embed=1: diagram only (used for the README screenshot) */
+  [data-embed] .page { padding: 24px 28px; max-width: none; }
+  [data-embed] header, [data-embed] .journey, [data-embed] .notes, [data-embed] footer { display: none; }
+  [data-embed] .stage { margin-top: 0; border-top: 0; padding-top: 0; }
+  [data-embed] .legend { margin-top: 10px; }
+
+  @media (max-width: 900px) {
+    .page { padding: 28px 20px 48px; }
+    header { flex-direction: column; align-items: flex-start; }
+    .notes { grid-template-columns: 1fr; }
+    .note + .note { padding-left: 0; border-left: 0; border-top: 1px solid var(--line-soft); }
+    .journey { flex-direction: column; align-items: stretch; }
+    .journey .steps { flex-wrap: wrap; }
+    .step { flex-basis: 50%; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div>
+      <div class="cap">Mfork · 架构 Architecture</div>
+      <h1 class="sg">数据包流向 <span>与分层设计</span></h1>
+    </div>
+    <div class="controls">
+      <div class="chips" id="chips">
+        <button class="chip on" data-flow="all">全部</button>
+        <button class="chip" data-flow="data">数据面</button>
+        <button class="chip" data-flow="control">控制面</button>
+        <button class="chip" data-flow="priv">提权</button>
+        <button class="chip" data-flow="direct">直连</button>
+      </div>
+      <div class="sep"></div>
+      <button class="btn" id="play"><span class="dot"></span>流动中</button>
+      <div class="sep"></div>
+      <button class="btn" id="theme">浅色</button>
+    </div>
+  </header>
+
+  <div class="stage" id="stage">
+    <svg id="svg" viewBox="0 0 1400 720" xmlns="http://www.w3.org/2000/svg" aria-label="Mfork 架构图">
+      <defs>
+        <pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse">
+          <path d="M28 0H0V28" fill="none" stroke="var(--grid)" stroke-width="1"/>
+        </pattern>
+        <filter id="blur" x="-100%" y="-100%" width="300%" height="300%">
+          <feGaussianBlur stdDeviation="3.5"/>
+        </filter>
+        <marker id="arr-data" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0.5 L7.5 4 L0 7.5 Z" fill="var(--ok)" opacity=".8"/>
+        </marker>
+        <marker id="arr-control" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0.5 L7.5 4 L0 7.5 Z" fill="var(--accent)" opacity=".8"/>
+        </marker>
+        <marker id="arr-priv" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0.5 L7.5 4 L0 7.5 Z" fill="var(--err)" opacity=".85"/>
+        </marker>
+        <marker id="arr-direct" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0.5 L7.5 4 L0 7.5 Z" fill="var(--warn)" opacity=".85"/>
+        </marker>
+      </defs>
+      <rect width="1400" height="720" fill="url(#grid)"/>
+      <g id="boundaries"></g>
+      <g id="edges"></g>
+      <g id="labels"></g>
+      <g id="packets"></g>
+      <g id="nodes"></g>
+      <g id="journey-layer"></g>
+    </svg>
+    <div class="tip" id="tip"></div>
+  </div>
+
+  <div class="legend">
+    <span class="l-data"><i></i>数据面 · 用户流量</span>
+    <span class="l-control"><i></i>控制面 · IPC / API</span>
+    <span class="l-priv"><i></i>提权 · SYSTEM / root</span>
+    <span class="l-direct"><i></i>DIRECT · 规则直连</span>
+  </div>
+
+  <div class="journey">
+    <div class="lead">
+      <span class="cap">追踪一个数据包</span>
+      <button class="go" id="go">播放 ▸</button>
+    </div>
+    <div class="steps" id="steps">
+      <div class="step"><div class="n sg">01</div><div class="t">应用发出请求</div><div class="d">浏览器 / 任意进程</div></div>
+      <div class="step"><div class="n sg">02</div><div class="t">进入系统代理</div><div class="d">127.0.0.1:mixed-port</div></div>
+      <div class="step"><div class="n sg">03</div><div class="t">内核规则匹配</div><div class="d">域名 / IP / 进程 → 策略组</div></div>
+      <div class="step"><div class="n sg">04</div><div class="t">加密隧道到节点</div><div class="d">VLESS / Trojan / SS</div></div>
+      <div class="step"><div class="n sg">05</div><div class="t">节点访问目标</div><div class="d">响应沿原路返回</div></div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note">
+      <h3><i style="background:var(--ok)"></i>数据面</h3>
+      <ul>
+        <li>应用流量有两个入口：<b>系统代理</b>（HTTP / SOCKS5，由 Rust 写入 OS 设置）或 <b>TUN 虚拟网卡</b>（接管全部 IP 流量，含不认代理的进程与 UDP）</li>
+        <li>内核按规则匹配后二选一：命中代理策略走加密隧道到节点；命中 <code>DIRECT</code> 则从本机直连目标</li>
+        <li>混合端口每次启动随机分配（可固定），系统代理随之自动重新指向</li>
+      </ul>
+    </div>
+    <div class="note">
+      <h3><i style="background:var(--accent)"></i>控制面</h3>
+      <ul>
+        <li>前端通过 <code>Tauri IPC</code> 调用 Rust：订阅、覆写、设置、内核启停</li>
+        <li>运行时数据（流量、连接、日志、延迟）由前端<b>直连内核 REST / WebSocket</b>，不经 Rust 转发</li>
+        <li>Rust 负责 <code>订阅 → 覆写链 → config.yaml</code> 生成管线、按间隔自动更新、内核自升级与备份（外部请求经内核代理出站）</li>
+      </ul>
+    </div>
+    <div class="note">
+      <h3><i style="background:var(--err)"></i>提权边界</h3>
+      <ul>
+        <li>GUI 全程不提权；TUN 需要特权时由<b>提权服务</b>（Windows SCM / macOS launchd / Linux systemd）以 SYSTEM / root 代启内核</li>
+        <li>本地 <code>127.0.0.1:33217</code> JSON-line 协议，仅管理员可写的 token 文件鉴权</li>
+        <li>内核路径在安装时钉死，请求只能指定配置与数据目录，不能换可执行文件</li>
+      </ul>
+    </div>
+  </div>
+
+  <footer>
+    <span class="cap2">Mfork · Tauri 2 + React 19 + mihomo</span>
+    <span class="cap2">悬停节点查看说明 · 顶部筛选流向</span>
+  </footer>
+</div>
+
+<script>
+(function () {
+  const NS = "http://www.w3.org/2000/svg";
+  const $ = (id) => document.getElementById(id);
+  const el = (tag, attrs = {}, parent) => {
+    const n = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    if (parent) parent.appendChild(n);
+    return n;
+  };
+
+  // ------------------------------------------------------------ model
+  const GLYPH = {
+    fe: "M4 5h16v11H4z M9 20h6 M12 16v4",
+    rust: "M6 4h12v16H6z M9 8h6 M9 12h6 M9 16h3",
+    svc: "M12 3l8 3v6c0 5-3.5 8.5-8 9-4.5-.5-8-4-8-9V6l8-3z M9 12l2 2 4-4",
+    apps: "M4 6h16v12H4z M4 10h16 M8 14h4",
+    sysproxy: "M4 12h6 M14 12h6 M10 8l4 4-4 4",
+    tun: "M12 3v5 M5 10h14v9H5z M9 14h6",
+    core: "M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z M12 12l8-4.5 M12 12v9 M12 12L4 7.5",
+    node: "M7 17a4 4 0 0 1 0-8 5 5 0 0 1 9.6-1A4 4 0 0 1 17 17H7z",
+    internet: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M3 12h18 M12 3c3 3 3 15 0 18 M12 3c-3 3-3 15 0 18",
+    remote: "M4 17V7l8 5 8-5v10z",
+  };
+
+  const nodes = [
+    { id: "remote",   kind: "external", x: 400, y: 12,  w: 200, h: 64, title: "订阅源 · GitHub · WebDAV", sub: "订阅下载 / 内核升级 / 备份",
+      tip: "所有出站请求（订阅、GitHub Releases、WebDAV）都由 Rust 发起，并经运行中的内核混合端口代理，受限网络下也能访问。" },
+    { id: "fe",       kind: "frontend", x: 100, y: 160, w: 190, h: 70, title: "React 前端", sub: "WebView · Zustand",
+      tip: "页面 UI。通过 Tauri IPC 调后端命令；运行时数据直接连内核 REST / WebSocket。" },
+    { id: "rust",     kind: "backend",  x: 400, y: 160, w: 200, h: 70, title: "Rust 后端", sub: "core · profile · settings",
+      tip: "只做 WebView 做不了的事：进程守护、文件、系统代理、提权。模块：core / profile / override / system / tray / service / updater / backup。" },
+    { id: "svc",      kind: "security", x: 700, y: 160, w: 190, h: 70, title: "提权服务", sub: "SCM / launchd / systemd", tag: "SYSTEM / root",
+      tip: "常驻特权守护进程。安装时一次系统授权，之后以 SYSTEM / root 代为启动内核，GUI 本身永不提权。" },
+    { id: "apps",     kind: "external", x: 70,  y: 440, w: 170, h: 70, title: "本机应用", sub: "浏览器 · 任意进程",
+      tip: "发起流量的一方。认代理的走系统代理；不认的（游戏、UDP、某些 CLI）由 TUN 兜底。" },
+    { id: "sysproxy", kind: "security", x: 400, y: 380, w: 200, h: 70, title: "系统代理", sub: "127.0.0.1:mixed-port", tag: "Rust 写入",
+      tip: "OS 级 HTTP / SOCKS 代理设置（Windows 注册表 / macOS networksetup）。内核端口变化时由 Rust 自动重新指向，停止时清除。" },
+    { id: "tun",      kind: "security", x: 400, y: 540, w: 200, h: 70, title: "TUN 虚拟网卡", sub: "wintun / utun", tag: "需要特权",
+      tip: "三层虚拟网卡，接管全部 IP 流量并劫持 DNS。创建它需要特权，所以内核必须由提权服务启动。" },
+    { id: "core",     kind: "core",     x: 700, y: 450, w: 190, h: 80, title: "mihomo 内核", sub: "规则匹配 · 策略组 · DNS",
+      tip: "真正的代理引擎。读取 Rust 生成的 config.yaml，按规则把每条连接分派到策略组 / 节点 / DIRECT；对外暴露 REST + WebSocket。" },
+    { id: "node",     kind: "cloud",    x: 1130, y: 360, w: 220, h: 70, title: "代理节点", sub: "VLESS / Trojan / SS / Hysteria",
+      tip: "远端服务器。内核与之建立加密隧道，目标看到的是节点的出口 IP。" },
+    { id: "internet", kind: "external", x: 1130, y: 580, w: 220, h: 70, title: "目标服务器", sub: "Internet",
+      tip: "最终目的地。经节点或直连到达，响应沿原路返回。" },
+  ];
+
+  // waypoints are absolute; first/last sit on node borders
+  const edges = [
+    { id: "fe-rust",    kind: "control", from: "fe", to: "rust", pts: [[290,195],[400,195]], label: "Tauri IPC", lx: 345, ly: 184, anchor: "middle", pk: 2, dur: 2.6 },
+    { id: "rust-svc",   kind: "priv",    from: "rust", to: "svc", pts: [[600,195],[700,195]], label: "JSON-line · token", lx: 650, ly: 184, anchor: "middle", pk: 1, dur: 3.2 },
+    { id: "remote-rust",kind: "control", from: "remote", to: "rust", pts: [[500,76],[500,160]], label: "HTTPS · 经内核代理", lx: 512, ly: 122, anchor: "start", pk: 1, dur: 4 },
+    { id: "rust-core",  kind: "control", from: "rust", to: "core", pts: [[500,230],[500,320],[770,320],[770,450]], label: "config.yaml · spawn", lx: 635, ly: 309, anchor: "middle", pk: 2, dur: 5 },
+    { id: "svc-core",   kind: "priv",    from: "svc", to: "core", pts: [[820,230],[820,450]], label: "TUN 时以 root 代启", lx: 832, ly: 380, anchor: "start", pk: 1, dur: 4 },
+    { id: "fe-core",    kind: "control", from: "fe", to: "core", pts: [[195,230],[195,345],[735,345],[735,450]], label: "REST / WebSocket", lx: 465, ly: 334, anchor: "middle", pk: 2, dur: 5.5, bidir: true },
+    { id: "apps-sys",   kind: "data",    from: "apps", to: "sysproxy", pts: [[240,475],[320,475],[320,415],[400,415]], label: "HTTP / SOCKS5", lx: 308, ly: 448, anchor: "end", pk: 3, dur: 2.8 },
+    { id: "apps-tun",   kind: "data",    from: "apps", to: "tun", pts: [[240,475],[320,475],[320,575],[400,575]], label: "全部 IP 流量", lx: 308, ly: 532, anchor: "end", pk: 2, dur: 3.2 },
+    { id: "sys-core",   kind: "data",    from: "sysproxy", to: "core", pts: [[600,415],[650,415],[650,475],[700,475]], label: "mixed-port", lx: 640, ly: 403, anchor: "middle", pk: 3, dur: 2.4 },
+    { id: "tun-core",   kind: "data",    from: "tun", to: "core", pts: [[600,575],[650,575],[650,505],[700,505]], label: "TUN 栈", lx: 640, ly: 563, anchor: "middle", pk: 2, dur: 2.6 },
+    { id: "core-node",  kind: "data",    from: "core", to: "node", pts: [[890,475],[1010,475],[1010,395],[1130,395]], label: "加密隧道", lx: 950, ly: 464, anchor: "middle", pk: 3, dur: 3.4, bidir: true },
+    { id: "node-net",   kind: "data",    from: "node", to: "internet", pts: [[1240,430],[1240,580]], label: "出口访问", lx: 1252, ly: 508, anchor: "start", pk: 2, dur: 2.6, bidir: true },
+    { id: "core-direct",kind: "direct",  from: "core", to: "internet", pts: [[890,505],[1050,505],[1050,615],[1130,615]], label: "DIRECT 直连", lx: 970, ly: 522, anchor: "middle", pk: 1, dur: 5 },
+  ];
+
+  const boundaries = [
+    { kind: "region", label: "本机 · Windows / macOS / Linux", x: 40, y: 100, w: 900, h: 560 },
+    { kind: "app",    label: "Mfork 桌面应用 · Tauri 2", x: 72, y: 130, w: 840, h: 128 },
+  ];
+
+  // ------------------------------------------------------------ render
+  function roundedPath(pts, r = 10) {
+    if (pts.length < 3) return `M${pts[0]} L${pts[1]}`;
+    let d = `M${pts[0][0]} ${pts[0][1]}`;
+    for (let i = 1; i < pts.length - 1; i++) {
+      const [px, py] = pts[i - 1], [cx, cy] = pts[i], [nx, ny] = pts[i + 1];
+      const d1 = Math.hypot(cx - px, cy - py), d2 = Math.hypot(nx - cx, ny - cy);
+      const rr = Math.min(r, d1 / 2, d2 / 2);
+      const ax = cx - (cx - px) / d1 * rr, ay = cy - (cy - py) / d1 * rr;
+      const bx = cx + (nx - cx) / d2 * rr, by = cy + (ny - cy) / d2 * rr;
+      d += ` L${ax} ${ay} Q${cx} ${cy} ${bx} ${by}`;
+    }
+    const last = pts[pts.length - 1];
+    return d + ` L${last[0]} ${last[1]}`;
+  }
+
+  const gB = $("boundaries"), gE = $("edges"), gL = $("labels"), gP = $("packets"), gN = $("nodes");
+
+  for (const b of boundaries) {
+    el("rect", { x: b.x, y: b.y, width: b.w, height: b.h, rx: 12, class: b.kind === "region" ? "region" : "app-boundary" }, gB);
+    const t = el("text", { x: b.x + 16, y: b.y + (b.kind === "region" ? -8 : 20), class: "region-label" }, gB);
+    t.textContent = b.label;
+  }
+
+  const edgeEls = {};
+  for (const e of edges) {
+    const d = roundedPath(e.pts);
+    const g = el("g", { "data-edge": e.id, "data-flow": e.kind }, gE);
+    el("path", { d, class: "edge-hit" }, g);
+    const p = el("path", { d, class: `edge ${e.kind}`, "marker-end": `url(#arr-${e.kind})` }, g);
+    if (e.bidir) p.setAttribute("marker-start", `url(#arr-${e.kind})`);
+    el("path", { id: `path-${e.id}`, d, fill: "none", stroke: "none" }, g);
+    edgeEls[e.id] = g;
+
+    // label with knockout background
+    const lg = el("g", { "data-edge": e.id, "data-flow": e.kind }, gL);
+    const t = el("text", { x: e.lx, y: e.ly, class: `elabel ${e.kind}`, "text-anchor": e.anchor }, lg);
+    t.textContent = e.label;
+    requestAnimationFrame(() => {
+      const bb = t.getBBox();
+      const bg = el("rect", { x: bb.x - 4, y: bb.y - 1, width: bb.width + 8, height: bb.height + 2, class: "elabel-bg" });
+      lg.insertBefore(bg, t);
+    });
+
+    // packets
+    const pg = el("g", { "data-edge": e.id, "data-flow": e.kind }, gP);
+    const mk = (i, reverse) => {
+      const pk = el("g", { class: `pkt ${e.kind}` }, pg);
+      el("circle", { r: 7, class: "halo", filter: "url(#blur)" }, pk);
+      el("circle", { r: 2.4, class: "core" }, pk);
+      const am = el("animateMotion", {
+        dur: `${e.dur}s`, repeatCount: "indefinite",
+        begin: `${-(i / e.pk) * e.dur - (reverse ? e.dur / 2 : 0)}s`,
+        keyPoints: reverse ? "1;0" : "0;1", keyTimes: "0;1", calcMode: "linear",
+      }, pk);
+      el("mpath", { href: `#path-${e.id}` }, am);
+    };
+    for (let i = 0; i < e.pk; i++) mk(i, false);
+    if (e.bidir) mk(0, true);
+  }
+
+  const nodeEls = {};
+  for (const n of nodes) {
+    const g = el("g", { class: `node k-${n.kind}`, "data-node": n.id, transform: `translate(${n.x} ${n.y})` }, gN);
+    el("rect", { width: n.w, height: n.h, rx: 10, class: "box" }, g);
+    const ic = el("g", { transform: "translate(16 " + (n.h / 2 - 12) + ") scale(1)" }, g);
+    el("path", { d: GLYPH[n.id], class: "glyph" }, ic);
+    const tt = el("text", { x: 52, y: n.h / 2 - 3, class: "title" }, g); tt.textContent = n.title;
+    const st = el("text", { x: 52, y: n.h / 2 + 14, class: "sub" }, g); st.textContent = n.sub;
+    if (n.tag) { const tg = el("text", { x: n.w - 12, y: 16, class: "tag", "text-anchor": "end" }, g); tg.textContent = n.tag; }
+    nodeEls[n.id] = g;
+  }
+
+  // ------------------------------------------------------------ hover
+  const tip = $("tip"), stage = $("stage");
+  function related(id) {
+    const set = new Set([id]);
+    const eids = new Set();
+    for (const e of edges) if (e.from === id || e.to === id) { eids.add(e.id); set.add(e.from); set.add(e.to); }
+    return { set, eids };
+  }
+  function highlight(id) {
+    const { set, eids } = related(id);
+    for (const n of nodes) nodeEls[n.id].classList.toggle("dimmed", !set.has(n.id));
+    nodeEls[id].classList.add("hot");
+    document.querySelectorAll("[data-edge]").forEach((g) => {
+      const on = eids.has(g.dataset.edge);
+      g.classList.toggle("dimmed", !on);
+      g.querySelector(".edge")?.classList.toggle("hot", on);
+    });
+  }
+  function clear() {
+    document.querySelectorAll(".dimmed").forEach((x) => x.classList.remove("dimmed"));
+    document.querySelectorAll(".hot").forEach((x) => x.classList.remove("hot"));
+    applyFilter();
+  }
+  for (const n of nodes) {
+    const g = nodeEls[n.id];
+    g.addEventListener("mouseenter", (ev) => {
+      highlight(n.id);
+      tip.innerHTML = `<b>${n.title}</b>${n.tip}`;
+      tip.classList.add("show");
+    });
+    g.addEventListener("mousemove", (ev) => {
+      const r = stage.getBoundingClientRect();
+      const x = Math.min(ev.clientX - r.left + 16, r.width - 320);
+      tip.style.left = x + "px";
+      tip.style.top = ev.clientY - r.top + 18 + "px";
+    });
+    g.addEventListener("mouseleave", () => { clear(); tip.classList.remove("show"); });
+  }
+  document.querySelectorAll("#edges [data-edge]").forEach((g) => {
+    const e = edges.find((x) => x.id === g.dataset.edge);
+    g.addEventListener("mouseenter", () => {
+      document.querySelectorAll("[data-edge]").forEach((x) => x.classList.toggle("dimmed", x.dataset.edge !== e.id));
+      for (const n of nodes) nodeEls[n.id].classList.toggle("dimmed", n.id !== e.from && n.id !== e.to);
+      g.querySelector(".edge").classList.add("hot");
+    });
+    g.addEventListener("mouseleave", clear);
+  });
+
+  // ------------------------------------------------------------ filter / play / theme
+  let flow = "all";
+  function applyFilter() {
+    document.querySelectorAll("[data-flow]").forEach((g) => {
+      g.classList.toggle("hidden-flow", flow !== "all" && g.dataset.flow !== flow);
+    });
+    const touched = new Set();
+    if (flow !== "all") for (const e of edges) if (e.kind === flow) { touched.add(e.from); touched.add(e.to); }
+    for (const n of nodes) nodeEls[n.id].classList.toggle("dimmed", flow !== "all" && !touched.has(n.id));
+  }
+  $("chips").addEventListener("click", (ev) => {
+    const b = ev.target.closest(".chip"); if (!b) return;
+    flow = b.dataset.flow;
+    document.querySelectorAll(".chip").forEach((c) => c.classList.toggle("on", c === b));
+    applyFilter();
+  });
+
+  const svg = $("svg");
+  let playing = true;
+  $("play").addEventListener("click", () => {
+    playing = !playing;
+    playing ? svg.unpauseAnimations() : svg.pauseAnimations();
+    $("play").classList.toggle("paused", !playing);
+    $("play").lastChild.textContent = playing ? "流动中" : "已暂停";
+  });
+
+  function setTheme(light) {
+    document.documentElement.dataset.theme = light ? "light" : "dark";
+    $("theme").textContent = light ? "深色" : "浅色";
+  }
+  $("theme").addEventListener("click", () => setTheme(document.documentElement.dataset.theme !== "light"));
+  // ?theme=light|dark presets the theme (default dark)
+  const qs = new URLSearchParams(location.search);
+  if (qs.get("theme") === "light") setTheme(true);
+  if (qs.has("embed")) document.documentElement.dataset.embed = "1";
+
+  // ------------------------------------------------------------ journey (one packet, end to end)
+  const journeyPts = [[240,475],[320,475],[320,415],[400,415],[500,415], [600,415],[650,415],[650,475],[700,475],[795,475],[890,475],[1010,475],[1010,395],[1130,395],[1240,395],[1240,430],[1240,580]];
+  const JL = $("journey-layer");
+  el("path", { id: "journey-path", d: roundedPath(journeyPts.filter((p, i, a) => i === 0 || p[0] !== a[i-1][0] || p[1] !== a[i-1][1])), fill: "none", stroke: "none" }, JL);
+  const steps = [...document.querySelectorAll(".step")];
+  const STEP_AT = [0, 0.2, 0.46, 0.72, 0.9]; // fraction of the journey where each step lights up
+  let running = false;
+  $("go").addEventListener("click", () => {
+    if (running) return;
+    running = true; $("go").disabled = true;
+    const DUR = 6.5;
+    const pk = el("g", { class: "pkt data" }, JL);
+    el("circle", { r: 12, class: "halo", filter: "url(#blur)" }, pk);
+    el("circle", { r: 3.6, class: "core" }, pk);
+    const am = el("animateMotion", { dur: `${DUR}s`, repeatCount: 1, fill: "freeze", calcMode: "linear" }, pk);
+    el("mpath", { href: "#journey-path" }, am);
+    if (!playing) svg.unpauseAnimations();
+    am.beginElement();
+    steps.forEach((s) => s.classList.remove("lit"));
+    STEP_AT.forEach((f, i) => setTimeout(() => steps[i].classList.add("lit"), f * DUR * 1000));
+    setTimeout(() => {
+      pk.remove();
+      steps.forEach((s) => s.classList.remove("lit"));
+      running = false; $("go").disabled = false;
+      if (!playing) svg.pauseAnimations();
+    }, DUR * 1000 + 600);
+  });
+})();
+</script>
+</body>
+</html>

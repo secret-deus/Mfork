@@ -1,0 +1,45 @@
+name: Ubuntu 26.04 deb
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'codex/ubuntu-26.04-deb-*'
+
+permissions:
+  contents: read
+
+jobs:
+  deb:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            src-tauri
+            service
+      - name: Install Ubuntu build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libssl-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+      - name: Build deb with bundled Geo data
+        run: bash scripts/build-deb.sh
+      - name: Upload deb and checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: mfork-ubuntu-26.04-amd64
+          path: |
+            releases/*/linux/*.deb
+            releases/*/linux/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
