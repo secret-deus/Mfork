@@ -7,7 +7,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
-execFileSync("cargo", ["build", "--release"], {
+execFileSync("cargo", ["build", "--release", "--locked"], {
   cwd: join(root, "service"),
   stdio: "inherit",
 });

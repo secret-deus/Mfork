@@ -1,5 +1,7 @@
 # Mfork
 
+Ubuntu 26.04 原生 `.deb` 构建与安装：见 [docs/UBUNTU.md](docs/UBUNTU.md)，构建命令为 `pnpm build:ubuntu`。
+
 一個基於 [mihomo](https://github.com/MetaCubeX/mihomo) 內核的桌面代理客戶端。Tauri 2 + React 19 構建，支持 Windows / macOS / Linux（三平台均含系統代理與 TUN 提權服務；Windows 已實機驗證，macOS / Linux 為交叉編譯檢查通過、待實機驗證）。
 
 > 設計文檔見 [docs/DESIGN.md](docs/DESIGN.md)，UI 設計稿源文件在 [design/](design/)。

@@ -42,9 +42,6 @@ const release = gh ? await gh.json() : null;
 const asset = android ? null : release.assets.find((a) => assetRe.test(a.name));
 if (!android && !asset) throw new Error(`no asset matching ${assetRe} in ${release.tag_name}`);
 
-if (asset) console.log(`Downloading ${asset.name} (${(asset.size / 1048576).toFixed(1)} MB) from ${release.tag_name}...`);
-const buf = asset ? Buffer.from(await (await fetch(asset.browser_download_url)).arrayBuffer()) : null;
-
 if (android) {
   const abi = { arm64: "arm64-v8a", amd64: "x86_64" }[arch];
   if (!abi) throw new Error(`unsupported android arch: ${arch}`);
@@ -69,6 +66,10 @@ if (android) {
   }
   process.exit(0);
 }
+console.log(`Downloading ${asset.name} (${(asset.size / 1048576).toFixed(1)} MB) from ${release.tag_name}...`);
+const download = await fetch(asset.browser_download_url);
+if (!download.ok) throw new Error(`Download ${asset.name}: HTTP ${download.status}`);
+const buf = Buffer.from(await download.arrayBuffer());
 
 const binName = os === "windows" ? "mihomo.exe" : "mihomo";
 const dest = join(destDir, binName);
