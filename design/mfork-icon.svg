@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 64 64">
+  <!-- The approved Fork mark and light tile from Main.dc.html / ForkLogo. -->
+  <rect x="2" y="2" width="60" height="60" rx="18" fill="#f2f3f5"/>
+  <g transform="translate(12 12) scale(1.666666667)" fill="none" stroke="#101114" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3.5 12h5.5c2.2 0 3.2-1.6 4.6-3.2 1.3-1.5 2.4-2.3 4.4-2.3h2.5"/>
+    <path d="M9 12c2.2 0 3.2 1.6 4.6 3.2 1.3 1.5 2.4 2.3 4.4 2.3h2.5"/>
+    <circle cx="3.5" cy="12" r="1.5" fill="#101114" stroke="none"/>
+  </g>
+</svg>

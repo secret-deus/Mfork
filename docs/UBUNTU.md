@@ -6,6 +6,12 @@ older Ubuntu versions with older glibc.
 
 Source baseline and history correction: [0.1.11 Ubuntu release notes](releases/0.1.11-ubuntu.md).
 
+The desktop and tray icons use the approved “Fork” mark from
+`design/Main.dc.html` and `src/components/icons.tsx`, exported as
+`design/mfork-icon.svg`. Desktop PNG/ICO/ICNS assets live in `src-tauri/icons/`.
+After reinstalling a package with updated icons, fully quit and restart
+Mfork to refresh the embedded tray icon.
+
 ## Build
 
 ```sh
