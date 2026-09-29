@@ -31,3 +31,6 @@ service/target/
 src-tauri/resources/service/
 /dist-android/
 /dist-windows/
+
+# Locally built installers and checksums
+/releases/

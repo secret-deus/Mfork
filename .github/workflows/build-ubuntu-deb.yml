@@ -3,6 +3,8 @@ name: Ubuntu 26.04 deb
 on:
   workflow_dispatch:
   push:
+    tags:
+      - 'v*'
     branches:
       - 'codex/ubuntu-26.04-deb-*'
 
