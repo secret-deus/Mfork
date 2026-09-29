@@ -14,12 +14,16 @@ for(const [name,delay] of [['JP 日本 东京 01',42],['HK 香港 01',38],['US �
 proxies[group.name]=group;
 let savedSettings=structuredClone(settings), appliedRules=[], generatedRules=[], failSave=false, failApply=false, runtimeMode='rule', generatedMode='rule';
 const calls=[];
-const api={port:65500,mixed_port:2176,secret:'test-only',started_at_ms:Date.now()-10000};
+const api={id:'test-session',transport:'unix',port:0,mixed_port:2176,started_at_ms:Date.now()-10000};
 let mockOverrides=[], overrideContents={}, failOverrideWrite=false, failPut=false, failModeRead=false, operationDelay=0;
 
 mockIPC(async (cmd,payload)=>{
   calls.push(cmd);
   if(operationDelay && /^(override_|config_regenerate)/.test(cmd))await new Promise(r=>setTimeout(r,operationDelay));
+  if(cmd==='core_request')return fixtureRequest(payload.path,payload.method,payload.body);
+  if(cmd==='core_start')return api;
+  if(cmd==='core_status')return {running:true,api};
+  if(cmd==='core_stop')return true;
   if(cmd==='profiles_list')return {active:null,items:[]};
   if(cmd==='overrides_list')return structuredClone(mockOverrides);
   if(cmd==='override_create'){
@@ -53,26 +57,24 @@ mockIPC(async (cmd,payload)=>{
   return null;
 });
 mockWindows('main');
-const realFetch=window.fetch;
-window.fetch=async(input,init)=>{
-  const url=new URL(input instanceof Request?input.url:String(input),location.href);
-  if(url.port!=='65500')return realFetch(input,init);
+async function fixtureRequest(path,method,body){
+  const url=new URL(path,'http://localhost');
   let data={};
   if(url.pathname==='/proxies')data={proxies};
   if(url.pathname==='/group')data={proxies:[group]};
   if(url.pathname==='/rules')data={rules:[...appliedRules.filter(r=>r.enabled).map(r=>({type:'ProcessName',payload:r.process_name,proxy:r.target})),{type:'Domain',payload:'example.com',proxy:'DIRECT'}]};
   if(url.pathname==='/providers/rules')data={providers:{}};
   if(url.pathname==='/configs'){
-    calls.push(`${init?.method??'GET'} /configs`);
-    if(init?.method==='PATCH')runtimeMode=JSON.parse(init.body).mode;
-    if(!init?.method || init.method==='GET'){if(failModeRead){failModeRead=false;return Response.json({error:'Fixture mode read failed'},{status:503});}}
-    if(init?.method==='PUT'){
-      if(failPut){failPut=false;return Response.json({error:'Fixture controller rejected config'},{status:500});}
+    calls.push(`${method??'GET'} /configs`);
+    if(method==='PATCH')runtimeMode=body.mode;
+    if(!method || method==='GET'){if(failModeRead){failModeRead=false;throw new Error('/configs: HTTP 503 — Fixture mode read failed');}}
+    if(method==='PUT'){
+      if(failPut){failPut=false;throw new Error('/configs: HTTP 500 — Fixture controller rejected config');}
       appliedRules=structuredClone(generatedRules);runtimeMode=generatedMode;
     }
     data={mode:runtimeMode};
   }
-  return Response.json(data);
+  return data;
 };
 useApp.setState({init:async()=>{},settings,phase:'running',mode:'rule',api,version:'v1.19.30',down:13421772,up:866304,memory:99614720,connections:3,snapshot:{connections:[],downloadTotal:123456,uploadTotal:1234}});
 applyTheme('dark');

@@ -281,7 +281,7 @@
       <h3><i style="background:var(--accent)"></i>控制面</h3>
       <ul>
         <li>前端通过 <code>Tauri IPC</code> 调用 Rust：订阅、覆写、设置、内核启停</li>
-        <li>运行时数据（流量、连接、日志、延迟）由前端<b>直连内核 REST / WebSocket</b>，不经 Rust 转发</li>
+        <li>运行时数据（流量、连接、日志、延迟）经 <b>Tauri IPC → Rust → Unix socket</b>；Windows/Android 使用 Rust 原生 loopback 连接</li>
         <li>Rust 负责 <code>订阅 → 覆写链 → config.yaml</code> 生成管线、按间隔自动更新、内核自升级与备份（外部请求经内核代理出站）</li>
       </ul>
     </div>
@@ -330,7 +330,7 @@
     { id: "remote",   kind: "external", x: 400, y: 12,  w: 200, h: 64, title: "订阅源 · GitHub · WebDAV", sub: "订阅下载 / 内核升级 / 备份",
       tip: "所有出站请求（订阅、GitHub Releases、WebDAV）都由 Rust 发起，并经运行中的内核混合端口代理，受限网络下也能访问。" },
     { id: "fe",       kind: "frontend", x: 100, y: 160, w: 190, h: 70, title: "React 前端", sub: "WebView · Zustand",
-      tip: "页面 UI。通过 Tauri IPC 调后端命令；运行时数据直接连内核 REST / WebSocket。" },
+      tip: "页面 UI。API 请求通过 Tauri commands；实时数据通过 Tauri channels 接收。" },
     { id: "rust",     kind: "backend",  x: 400, y: 160, w: 200, h: 70, title: "Rust 后端", sub: "core · profile · settings",
       tip: "只做 WebView 做不了的事：进程守护、文件、系统代理、提权。模块：core / profile / override / system / tray / service / updater / backup。" },
     { id: "svc",      kind: "security", x: 700, y: 160, w: 190, h: 70, title: "提权服务", sub: "SCM / launchd / systemd", tag: "SYSTEM / root",
@@ -356,7 +356,7 @@
     { id: "remote-rust",kind: "control", from: "remote", to: "rust", pts: [[500,76],[500,160]], label: "HTTPS · 经内核代理", lx: 512, ly: 122, anchor: "start", pk: 1, dur: 4 },
     { id: "rust-core",  kind: "control", from: "rust", to: "core", pts: [[500,230],[500,320],[770,320],[770,450]], label: "config.yaml · spawn", lx: 635, ly: 309, anchor: "middle", pk: 2, dur: 5 },
     { id: "svc-core",   kind: "priv",    from: "svc", to: "core", pts: [[820,230],[820,450]], label: "TUN 时以 root 代启", lx: 832, ly: 380, anchor: "start", pk: 1, dur: 4 },
-    { id: "fe-core",    kind: "control", from: "fe", to: "core", pts: [[195,230],[195,345],[735,345],[735,450]], label: "REST / WebSocket", lx: 465, ly: 334, anchor: "middle", pk: 2, dur: 5.5, bidir: true },
+    { id: "rust-api",   kind: "control", from: "rust", to: "core", pts: [[450,230],[450,345],[735,345],[735,450]], label: "Unix socket / native API", lx: 590, ly: 334, anchor: "middle", pk: 2, dur: 5.5, bidir: true },
     { id: "apps-sys",   kind: "data",    from: "apps", to: "sysproxy", pts: [[240,475],[320,475],[320,415],[400,415]], label: "HTTP / SOCKS5", lx: 308, ly: 448, anchor: "end", pk: 3, dur: 2.8 },
     { id: "apps-tun",   kind: "data",    from: "apps", to: "tun", pts: [[240,475],[320,475],[320,575],[400,575]], label: "全部 IP 流量", lx: 308, ly: 532, anchor: "end", pk: 2, dur: 3.2 },
     { id: "sys-core",   kind: "data",    from: "sysproxy", to: "core", pts: [[600,415],[650,415],[650,475],[700,475]], label: "mixed-port", lx: 640, ly: 403, anchor: "middle", pk: 3, dur: 2.4 },

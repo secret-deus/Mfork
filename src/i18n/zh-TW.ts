@@ -105,6 +105,7 @@ const zhTW: Record<string, string> = {
   "内核启动中": "內核啟動中",
   "内核异常": "內核異常",
   "内核已停止": "內核已停止",
+  "混合端口 {mixed}": "混合連接埠 {mixed}",
   "API 127.0.0.1:{port} · 混合端口 {mixed}": "API 127.0.0.1:{port} · 混合埠 {mixed}",
   "内核进程意外退出（code {code}）": "內核程序意外退出（code {code}）",
   "当前节点 · {name}": "目前節點 · {name}",

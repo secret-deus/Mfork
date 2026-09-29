@@ -1,18 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import { t } from "../i18n";
 import type { ProcessRule } from "./process-rules";
-
-export interface ApiInfo {
-  port: number;
-  secret: string;
-  mixed_port: number;
-  started_at_ms: number;
-}
-
-export interface CoreStatus {
-  running: boolean;
-  api: ApiInfo | null;
-}
+import type { ApiInfo, CoreStatus } from "./core-transport";
+export { apiGet, apiPatch, apiPut, apiPost, apiDelete, subscribeCoreStream, reconcileCoreSession } from "./core-transport";
+export type { ApiInfo, CoreStatus } from "./core-transport";
 
 export const coreStart = () => invoke<ApiInfo>("core_start");
 export const coreStop = () => invoke<boolean>("core_stop");
@@ -24,58 +15,6 @@ export const coreLogTail = (lines = 60) => invoke<string>("core_log_tail", { lin
 export type DiagItem = { name: string; ok: boolean; detail: string };
 /** probes from the app process and through the core; see core.rs net_diagnose */
 export const netDiagnose = () => invoke<DiagItem[]>("net_diagnose");
-
-export const apiUrl = (api: ApiInfo, path: string) =>
-  `http://127.0.0.1:${api.port}${path}`;
-
-export const wsUrl = (api: ApiInfo, path: string) =>
-  `ws://127.0.0.1:${api.port}${path}?token=${encodeURIComponent(api.secret)}`;
-
-async function request<T>(
-  api: ApiInfo,
-  path: string,
-  init?: RequestInit,
-): Promise<T> {
-  const res = await fetch(apiUrl(api, path), {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${api.secret}`,
-      ...(init?.body ? { "Content-Type": "application/json" } : {}),
-      ...init?.headers,
-    },
-  });
-  if (!res.ok) {
-    let detail = (await res.text()).trim();
-    try {
-      const body = JSON.parse(detail);
-      detail = typeof body.message === "string" ? body.message : detail;
-    } catch { /* Some controller failures return plain text. */ }
-    throw new Error(`${path}: HTTP ${res.status}${detail ? ` — ${detail.slice(0, 500)}` : ""}`);
-  }
-  if (res.status === 204) return undefined as T;
-  const text = await res.text();
-  return (text ? JSON.parse(text) : undefined) as T;
-}
-
-export const apiGet = <T>(api: ApiInfo, path: string) => request<T>(api, path);
-
-export const apiPatch = <T>(api: ApiInfo, path: string, body: unknown) =>
-  request<T>(api, path, { method: "PATCH", body: JSON.stringify(body) });
-
-export const apiPut = <T>(api: ApiInfo, path: string, body?: unknown) =>
-  request<T>(api, path, {
-    method: "PUT",
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-
-export const apiPost = <T>(api: ApiInfo, path: string, body?: unknown) =>
-  request<T>(api, path, {
-    method: "POST",
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-
-export const apiDelete = <T>(api: ApiInfo, path: string) =>
-  request<T>(api, path, { method: "DELETE" });
 
 export function formatDuration(sinceIso: string): string {
   const s = Math.max(0, Math.floor((Date.now() - Date.parse(sinceIso)) / 1000));

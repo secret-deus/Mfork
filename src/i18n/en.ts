@@ -105,6 +105,7 @@ const en: Record<string, string> = {
   "内核启动中": "Core starting",
   "内核异常": "Core error",
   "内核已停止": "Core stopped",
+  "混合端口 {mixed}": "Mixed port {mixed}",
   "API 127.0.0.1:{port} · 混合端口 {mixed}": "API 127.0.0.1:{port} · mixed port {mixed}",
   "内核进程意外退出（code {code}）": "Core process exited unexpectedly (code {code})",
   "当前节点 · {name}": "Current node · {name}",

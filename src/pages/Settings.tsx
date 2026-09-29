@@ -484,7 +484,7 @@ function NetworkSection() {
       ) : null}
       <Row
         label={t("外部控制 API")}
-        right={<Val>{api ? `127.0.0.1:${api.port}` : "—"}</Val>}
+        right={<Val>{api ? api.transport === "unix" ? "Unix socket" : `127.0.0.1:${api.port}` : "—"}</Val>}
       />
       <Row
         label={t("允许局域网")}

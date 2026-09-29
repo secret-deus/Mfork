@@ -11,7 +11,7 @@
 上圖為靜態截圖；交互版在 [docs/diagrams/mfork-architecture.html](docs/diagrams/mfork-architecture.html)（單文件、離線可開）：數據包沿鏈路實時流動，可按數據面 / 控制面 / 提權 / 直連篩選，懸停節點查看說明，「追蹤一個數據包」從應用到目標逐步點亮，支持深淺主題。節點與連線在文件內的 `nodes` / `edges` 兩張表中維護，路徑與動畫由其生成。
 
 - **數據面（綠）**：本機應用 → 系統代理（HTTP/SOCKS5）或 TUN 虛擬網卡 → mihomo 內核 → 加密隧道到代理節點 → 目標；命中 `DIRECT` 規則則從內核直連（琥珀色點線）
-- **控制面（藍虛線）**：React 前端經 Tauri IPC 調 Rust 後端；Rust 生成 `config.yaml` 並 spawn 內核；運行時數據由前端直連內核 REST / WebSocket，不經 Rust 轉發；訂閱、內核升級、備份等出站請求經內核代理
+- **控制面（藍虛線）**：React 前端經 Tauri IPC 調 Rust 後端；Rust 生成 `config.yaml` 並 spawn 內核；運行時請求與四路事件訂閱統一經 Tauri IPC → Rust；Linux/macOS 使用私有 Unix socket 連接 mihomo，Windows/Android 由 Rust 連接 loopback controller；訂閱、內核升級、備份等出站請求經內核代理
 - **提權（紅）**：TUN 需要特權時由提權服務（Windows SCM / macOS launchd / Linux systemd）以 SYSTEM / root 代啟內核，GUI 全程不提權
 
 ## 開發
@@ -82,7 +82,7 @@ CI 在以下 GitHub secrets 存在時自動對 .app/.dmg 簽名並公證，缺�
 
 ## 架構速覽
 
-- **Rust（src-tauri）**：`core` 進程守護（隨機 API 端口 + secret）、`profile` 訂閱與配置生成、`override_` 覆寫管線、`system` 系統代理/自啟、`tray` 托盤、`service` 提權服務客戶端、`updater` 內核自升級、`backup` 本地/WebDAV 備份、`settings` 應用設置
+- **Rust（src-tauri）**：`core` 進程守護、`controller` 本機 API 與事件傳輸（Unix socket / 原生 loopback）、`profile` 訂閱與配置生成、`override_` 覆寫管線、`system` 系統代理/自啟、`tray` 托盤、`service` 提權服務客戶端、`updater` 內核自升級、`backup` 本地/WebDAV 備份、`settings` 應用設置
 - **i18n（src/i18n）**：源語言 zh-CN，源字串即 key（`t("啟動內核")`），`en.ts` / `zh-TW.ts` 為字典；新增 UI 文字後補齊兩份字典即可
 - **主題（src/index.css + src/theme.ts）**：調色板以 CSS 變量掛在 `<html data-theme>`，Tailwind token 經 `@theme inline` 映射；組件只用 token 類名，不寫硬編碼色值
-- **前端（src）**：運行時數據直連 mihomo RESTful API（HTTP + WebSocket），不經 Rust 轉發
+- **前端（src）**：運行時數據通過 Tauri commands / channels 交給 Rust，不在 WebView 內發起 controller HTTP / WebSocket 請求

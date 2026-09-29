@@ -52,19 +52,7 @@ fn new_id(app: &AppHandle, idx: &ProfilesIndex) -> Result<String, String> {
 }
 
 fn confirmed_mode(api: &crate::core::ApiInfo) -> Result<String, String> {
-    let resp = reqwest::blocking::Client::builder()
-        .no_proxy()
-        .timeout(Duration::from_secs(5))
-        .build()
-        .map_err(|e| e.to_string())?
-        .get(format!("http://127.0.0.1:{}/configs", api.port))
-        .bearer_auth(&api.secret)
-        .send()
-        .map_err(|e| e.to_string())?
-        .error_for_status()
-        .map_err(|e| e.to_string())?;
-    let value: serde_json::Value =
-        serde_json::from_str(&read_text_capped(resp, 1024 * 1024)?).map_err(|e| e.to_string())?;
+    let value = api.controller.request("GET", "/configs", None, Duration::from_secs(5))?;
     let mode = value["mode"].as_str().ok_or("内核未返回当前模式")?;
     if !matches!(mode, "rule" | "global" | "direct") {
         return Err("内核当前模式无效".into());
@@ -393,6 +381,7 @@ pub fn config_regenerate(
                 api.port,
                 &api.secret,
                 api.mixed_port,
+                &api.controller,
                 Some(&mode),
             )?;
             Ok(Some(path.to_string_lossy().to_string()))
@@ -502,8 +491,9 @@ pub fn generate_config(
     api_port: u16,
     secret: &str,
     mixed_port: u16,
+    controller: &crate::controller::Controller,
 ) -> Result<PathBuf, String> {
-    generate_config_with_mode(app, api_port, secret, mixed_port, None)
+    generate_config_with_mode(app, api_port, secret, mixed_port, controller, None)
 }
 
 fn generate_config_with_mode(
@@ -511,6 +501,7 @@ fn generate_config_with_mode(
     api_port: u16,
     secret: &str,
     mixed_port: u16,
+    controller: &crate::controller::Controller,
     mode: Option<&str>,
 ) -> Result<PathBuf, String> {
     let idx = load_index(app).map_err(|e| format!("订阅索引损坏（profiles/index.json）: {e}"))?;
@@ -551,7 +542,8 @@ fn generate_config_with_mode(
 
     let s = crate::settings::load(app);
     let tun_fd = *app.state::<CoreState>().tun_fd.lock().unwrap();
-    let doc = inject_managed(doc, &s, api_port, secret, mixed_port, tun_fd);
+    let mut doc = inject_managed(doc, &s, api_port, secret, mixed_port, tun_fd);
+    controller.configure(&mut doc);
 
     // process-name routing is a desktop-only feature: Android has no process
     // table access (find-process-mode stays "off" there), so the rules are
@@ -607,6 +599,8 @@ pub fn inject_managed(
         "mixed-port",
         "external-controller",
         "external-controller-tls",
+        "external-controller-unix",
+        "external-controller-pipe",
         "external-ui",
         "secret",
         "tun",

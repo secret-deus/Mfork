@@ -22,8 +22,8 @@
 │                  React 前端 (WebView2)            │
 │  頁面 UI ── Tauri IPC ──► Rust 後端              │
 │     │                                            │
-│     └── HTTP / WebSocket ──► mihomo REST API     │
-│                              (127.0.0.1:9090)    │
+│     └── Tauri IPC ──► Rust ──► mihomo API       │
+│                              (Unix socket / loopback)    │
 ├─────────────────────────────────────────────────┤
 │                  Tauri Rust 後端                  │
 │  ├─ core:    mihomo 進程守護    updater: 內核自升級│
@@ -35,12 +35,12 @@
 └─────────────────────────────────────────────────┘
 ```
 
-**關鍵設計決策：運行時數據走「前端 → mihomo API」直連**（節點列表、延遲測試、連接、日誌、流量、模式切換），不經過 Rust 轉發——減少 IPC 樣板代碼，且 metacubexd 已驗證此模式。Rust 只負責 WebView 做不了的事：進程、文件、註冊表、提權。
+**控制通信統一經 Rust**：前端通過 Tauri commands 發起 API 請求，通過 channels 接收日誌、流量、內存與連接事件。Linux/macOS 使用私有目錄內的 Unix socket；Windows/Android 保留 Rust 原生 loopback 傳輸。HTTP/WebSocket 協議留在 Rust 與 mihomo 之間，WebView 不再直連 controller。Rust 負責會話校驗、就緒探測、訂閱取消與重連，詳見 [CONTROLLER-IPC.md](CONTROLLER-IPC.md)。
 
 ### 2.1 內核進程管理（Rust `core` 模塊）
 
 - 隨包捆綁一份 mihomo（`resources/mihomo/`，由 `scripts/fetch-core.mjs` 拉取）；設置頁可按 stable / alpha 通道從 GitHub Releases 自升級，新內核放 `<app-data>/core-bin/` 並優先使用，可一鍵恢復自帶版本（見 `updater` 模塊）
-- 啟動流程：生成最終配置 → spawn 子進程（TUN 開啟時改由提權服務代啟）→ 輪詢 API 端口就緒（≤8s）→ 返回 ApiInfo 給前端 → 重新指向系統代理
+- 啟動流程：生成最終配置 → spawn 子進程（TUN 開啟時改由提權服務代啟）→ 驗證 `/version` 與 `/configs` 的 HTTP 回應和 JSON 狀態（沿用冷／熱啟動期限）→ 返回 ApiInfo 給前端 → 重新指向系統代理
 - 守護：watcher 線程偵測子進程退出，清掉系統代理並向前端發 `core-exited`（前端顯示異常，不自動重啟）；stdout/stderr 落盤 `core/core.log`、`core.err.log`
 - external-controller 隨機端口 + 隨機 secret；混合端口默認自動（沿用上次使用的端口，被佔用時另選），設置頁可固定
 - 退出 GUI 時殺內核（含服務代啟的），不留孤兒進程

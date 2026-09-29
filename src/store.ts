@@ -18,7 +18,8 @@ import {
   systemProxySet,
   traySync,
   vpnPrepare,
-  wsUrl,
+  subscribeCoreStream,
+  reconcileCoreSession,
 } from "./lib/core";
 import { IS_ANDROID } from "./lib/platform";
 import { ConnectionsSnapshot, ConnItem, LogLine } from "./lib/types";
@@ -82,10 +83,7 @@ interface AppState {
   init: () => Promise<void>;
 }
 
-let sockets: WebSocket[] = [];
-let streamGeneration = 0;
-let streamRetry: number | null = null;
-let streamRetryDelay = 1000;
+let streams: (() => void)[] = [];
 
 // log buffer: batched into the store every 250ms so chatty debug output
 // doesn't trigger a re-render per line
@@ -95,11 +93,8 @@ let logFlush: number | null = null;
 const LOG_CAP = 1000;
 
 function closeStreams() {
-  streamGeneration++;
-  if (streamRetry != null) clearTimeout(streamRetry);
-  streamRetry = null;
-  for (const ws of sockets) ws.close();
-  sockets = [];
+  for (const close of streams) close();
+  streams = [];
   if (logFlush != null) {
     clearTimeout(logFlush);
     logFlush = null;
@@ -113,10 +108,9 @@ function openStreams(
   get: () => AppState,
 ) {
   closeStreams();
-  const logs = new WebSocket(wsUrl(api, "/logs") + "&level=debug");
-  logs.onmessage = (e) => {
+  const onError = (message: string) => get().notify(message);
+  const logs = subscribeCoreStream<{ type: string; payload: string }>(api, "logs", (d) => {
     if (get().logsPaused) return;
-    const d = JSON.parse(e.data);
     logBuf.push({ type: d.type, payload: d.payload, seq: logSeq++, at: Date.now() });
     if (logFlush == null) {
       logFlush = window.setTimeout(() => {
@@ -128,22 +122,15 @@ function openStreams(
         });
       }, 250);
     }
-  };
-  sockets.push(logs);
-  const traffic = new WebSocket(wsUrl(api, "/traffic"));
-  traffic.onmessage = (e) => {
-    const d = JSON.parse(e.data);
+  }, onError);
+  const traffic = subscribeCoreStream<{ up: number; down: number }>(api, "traffic", (d) => {
     set({ up: d.up, down: d.down });
-  };
-  const memory = new WebSocket(wsUrl(api, "/memory"));
-  memory.onmessage = (e) => {
-    const d = JSON.parse(e.data);
+  }, onError);
+  const memory = subscribeCoreStream<{ inuse: number }>(api, "memory", (d) => {
     set({ memory: d.inuse });
-  };
+  }, onError);
   let prev = new Map<string, { up: number; down: number }>();
-  const conns = new WebSocket(wsUrl(api, "/connections"));
-  conns.onmessage = (e) => {
-    const d = JSON.parse(e.data);
+  const conns = subscribeCoreStream<ConnectionsSnapshot>(api, "connections", (d) => {
     const raw: Omit<ConnItem, "upSpeed" | "downSpeed">[] = Array.isArray(
       d.connections,
     )
@@ -168,25 +155,8 @@ function openStreams(
         connections: items,
       },
     });
-  };
-  sockets.push(traffic, memory, conns);
-  const generation = streamGeneration;
-  for (const socket of sockets) {
-    socket.onopen = () => {
-      if (generation === streamGeneration && sockets.every((s) => s.readyState === WebSocket.OPEN)) {
-        streamRetryDelay = 1000;
-      }
-    };
-    socket.onclose = () => {
-      if (generation !== streamGeneration || streamRetry != null) return;
-      streamRetry = window.setTimeout(() => {
-        streamRetry = null;
-        if (generation === streamGeneration && get().api === api) openStreams(api, set, get);
-      }, streamRetryDelay);
-      streamRetryDelay = Math.min(streamRetryDelay * 2, 15000);
-    };
-    socket.onerror = () => socket.close();
-  }
+  }, onError);
+  streams = [logs, traffic, memory, conns];
 }
 
 let initialized = false;
@@ -217,6 +187,7 @@ export const useApp = create<AppState>((set, get) => {
   const startImpl = async () => {
     const revision = configRevision;
     set({ phase: "starting", error: null });
+    let attempted: ApiInfo | null = get().api;
     try {
       if (IS_ANDROID) {
         const s = get().settings ?? (await settingsGet());
@@ -225,6 +196,7 @@ export const useApp = create<AppState>((set, get) => {
         }
       }
       const api = await coreStart();
+      attempted = api;
       const version = await apiGet<{ version: string }>(api, "/version");
       const configs = await apiGet<{ mode: string }>(api, "/configs");
       openStreams(api, set, get);
@@ -233,7 +205,9 @@ export const useApp = create<AppState>((set, get) => {
       void traySync(mode);
       set({ configPending: revision !== configRevision });
     } catch (e) {
-      set({ phase: "error", error: String(e), api: null });
+      closeStreams();
+      const api = await reconcileCoreSession(attempted);
+      set({ phase: "error", error: String(e), api });
       void traySync(null);
     }
   };
@@ -322,7 +296,7 @@ export const useApp = create<AppState>((set, get) => {
     if (queuedRestart) return queuedRestart;
     const p = serialize(async () => {
       queuedRestart = null;
-      if (get().phase === "running") await stopImpl();
+      if (get().api || get().phase === "running" || get().phase === "error") await stopImpl();
       await startImpl();
     });
     queuedRestart = p;
@@ -381,9 +355,9 @@ export const useApp = create<AppState>((set, get) => {
       return; // already rolled back + reported
     }
     get().markConfigPending();
-    if (get().phase !== "running" && get().phase !== "starting") return;
+    if (!get().api && get().phase !== "running" && get().phase !== "starting") return;
     try {
-      if (how === "restart") await get().restart();
+      if (how === "restart" || get().phase === "error") await get().restart();
       else if (!(await get().reloadConfig())) throw new Error(t("配置尚未应用，请重试"));
     } catch (e) {
       get().notify(t("设置已保存，但应用到内核失败: {msg}", { msg: String(e) }));
@@ -480,21 +454,10 @@ export const useApp = create<AppState>((set, get) => {
     });
     const status = await coreStatus();
     if (status.running && status.api) {
-      const version = await apiGet<{ version: string }>(status.api, "/version");
-      const configs = await apiGet<{ mode: string }>(status.api, "/configs");
-      openStreams(status.api, set, get);
-      const mode = confirmedMode(configs.mode);
-      set({
-        phase: "running",
-        api: status.api,
-        version: version.version,
-        mode,
-      });
-      void traySync(mode);
-    } else {
-      // auto-start on launch
-      await get().start();
+      set({ api: status.api });
     }
+    // The guarded start path also reattaches to an existing service core.
+    await get().start();
   },
   };
 });

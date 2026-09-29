@@ -3,6 +3,7 @@ mod config_limits;
 #[cfg(desktop)]
 mod js_worker;
 mod core;
+mod controller;
 mod override_;
 mod profile;
 mod settings;
@@ -72,6 +73,7 @@ pub fn run() {
     }
     builder
         .manage(core::CoreState::default())
+        .manage(controller::Streams::default())
         .setup(|app| {
             backup::recover_pending(app.handle()).map_err(std::io::Error::other)?;
             #[cfg(desktop)]
@@ -92,6 +94,9 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            controller::core_request,
+            controller::core_subscribe,
+            controller::core_unsubscribe,
             core::core_start,
             core::core_stop,
             core::core_status,

@@ -16,7 +16,12 @@ mod logs;
 #[derive(Clone, Serialize)]
 pub struct ApiInfo {
     pub port: u16,
+    #[serde(skip)]
     pub secret: String,
+    pub id: String,
+    pub transport: &'static str,
+    #[serde(skip)]
+    pub controller: crate::controller::Controller,
     pub mixed_port: u16,
     pub started_at_ms: u128,
 }
@@ -246,15 +251,7 @@ fn net_diagnose_inner(app: &AppHandle) -> Vec<DiagItem> {
         }),
         Some(api) => {
             out.push(timed("内核 DNS → www.baidu.com", || {
-                let r = client(None)?
-                    .get(format!(
-                        "http://127.0.0.1:{}/dns/query?name=www.baidu.com&type=A",
-                        api.port
-                    ))
-                    .bearer_auth(&api.secret)
-                    .send()
-                    .map_err(|e| e.to_string())?;
-                let v: serde_json::Value = r.json().map_err(|e| e.to_string())?;
+                let v = api.controller.request("GET", "/dns/query?name=www.baidu.com&type=A", None, Duration::from_secs(6))?;
                 let n = v.get("Answer").and_then(|a| a.as_array()).map(|a| a.len()).unwrap_or(0);
                 if n == 0 {
                     Err(format!("无应答：{v}"))
@@ -318,7 +315,7 @@ fn core_start_inner(app: &AppHandle) -> Result<ApiInfo, String> {
 
     let bin = core_binary(&app)?;
     let dir = data_dir(&app)?;
-    let api_port = free_port()?;
+    let api_port = if crate::controller::USE_UNIX_SOCKET { 0 } else { free_port()? };
     let mixed_port = if settings.mixed_port > 0 {
         let fixed = settings.mixed_port;
         if TcpListener::bind(("127.0.0.1", fixed)).is_err() {
@@ -341,6 +338,17 @@ fn core_start_inner(app: &AppHandle) -> Result<ApiInfo, String> {
         port
     };
     let secret = random_secret()?;
+    let controller = crate::controller::Controller::new(api_port, &secret)?;
+    let info = ApiInfo {
+        port: api_port,
+        secret: secret.clone(),
+        id: random_secret()?,
+        transport: controller.transport(),
+        controller,
+        mixed_port,
+        started_at_ms: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH).unwrap().as_millis(),
+    };
 
     // Android TUN: the VPN service brings the interface up first and the
     // config points the core at its fd
@@ -354,7 +362,7 @@ fn core_start_inner(app: &AppHandle) -> Result<ApiInfo, String> {
     let tun_fd: Option<i32> = None;
     *state.tun_fd.lock().unwrap() = tun_fd;
 
-    let config_path = match crate::profile::generate_config(app, api_port, &secret, mixed_port) {
+    let config_path = match crate::profile::generate_config(app, api_port, &secret, mixed_port, &info.controller) {
         Ok(p) => p,
         Err(e) => {
             release_tun(app, &state);
@@ -488,14 +496,10 @@ fn core_start_inner(app: &AppHandle) -> Result<ApiInfo, String> {
     let deadline = Instant::now() + wait;
     let mut next_liveness_check = Instant::now();
     loop {
-        if TcpStream::connect_timeout(
-            &format!("127.0.0.1:{api_port}").parse().unwrap(),
-            Duration::from_millis(300),
-        )
-        .is_ok()
-        {
-            break;
-        }
+        let readiness_error = match info.controller.ready() {
+            Ok(()) => break,
+            Err(error) => error,
+        };
         if Instant::now() >= next_liveness_check {
             let running = if use_service {
                 crate::service::core_running_status(app)
@@ -508,7 +512,7 @@ fn core_start_inner(app: &AppHandle) -> Result<ApiInfo, String> {
             // Keep retrying the API/status probes until the existing deadline.
             if running == Some(false) {
                 let _ = core_stop_inner(app, &state);
-                return Err(logs::startup_error(pid, "exited before opening the API port", &log_dir));
+                return Err(logs::startup_error(pid, "exited before the controller became ready", &log_dir));
             }
             next_liveness_check = Instant::now() + Duration::from_secs(1);
         }
@@ -516,7 +520,7 @@ fn core_start_inner(app: &AppHandle) -> Result<ApiInfo, String> {
             let _ = core_stop_inner(app, &state);
             return Err(logs::startup_error(
                 pid,
-                &format!("did not open the API port within {}s", wait.as_secs()),
+                &format!("controller not ready within {}s: {readiness_error}", wait.as_secs()),
                 &log_dir,
             ));
         }
@@ -527,13 +531,9 @@ fn core_start_inner(app: &AppHandle) -> Result<ApiInfo, String> {
     // keeps serving its API after a listener initialization failure.
     #[cfg(target_os = "android")]
     if tun_fd.is_some() {
-        let client = reqwest::blocking::Client::builder().no_proxy()
-            .timeout(Duration::from_secs(1)).build().map_err(|e| e.to_string())?;
         let deadline = Instant::now() + Duration::from_secs(10);
         loop {
-            let config = client.get(format!("http://127.0.0.1:{api_port}/configs"))
-                .bearer_auth(&secret).send().and_then(|r| r.error_for_status())
-                .and_then(|r| r.json::<serde_json::Value>());
+            let config = info.controller.request("GET", "/configs", None, Duration::from_secs(1));
             if config.ok().and_then(|c| c["tun"]["enable"].as_bool()) == Some(true) {
                 break;
             }
@@ -548,16 +548,11 @@ fn core_start_inner(app: &AppHandle) -> Result<ApiInfo, String> {
         }
     }
 
-    let info = ApiInfo {
-        port: api_port,
-        secret,
-        mixed_port,
-        started_at_ms: std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_millis(),
-    };
-    *state.api.lock().unwrap() = Some(info.clone());
+    {
+        let mut api = state.api.lock().unwrap();
+        app.state::<crate::controller::Streams>().stop_all();
+        *api = Some(info.clone());
+    }
     #[cfg(target_os = "android")]
     if tun_fd.is_some() {
         crate::vpn::attach_core(app, api_port, &info.secret);
@@ -570,6 +565,7 @@ fn core_start_inner(app: &AppHandle) -> Result<ApiInfo, String> {
 
     // watcher: notify the frontend if the core dies
     let app2 = app.clone();
+    let session_id = info.id.clone();
     if use_service {
         std::thread::spawn(move || loop {
             std::thread::sleep(Duration::from_secs(2));
@@ -577,11 +573,12 @@ fn core_start_inner(app: &AppHandle) -> Result<ApiInfo, String> {
             if !*state.via_service.lock().unwrap() {
                 break; // switched mode or stopped deliberately
             }
-            if state.api.lock().unwrap().is_none() {
+            if state.api.lock().unwrap().as_ref().map(|api| &api.id) != Some(&session_id) {
                 break;
             }
-            if !crate::service::core_running(&app2) {
-                *state.api.lock().unwrap() = None;
+            if crate::service::core_running_status(&app2) == Some(false) {
+                if state.api.lock().unwrap().as_ref().map(|api| &api.id) != Some(&session_id) { break; }
+                clear_api(&app2, &state);
                 *state.via_service.lock().unwrap() = false;
                 crate::system::clear_if_enabled(&app2);
                 release_tun(&app2, &state);
@@ -594,11 +591,12 @@ fn core_start_inner(app: &AppHandle) -> Result<ApiInfo, String> {
             std::thread::sleep(Duration::from_millis(800));
             let state = app2.state::<CoreState>();
             let mut guard = state.child.lock().unwrap();
+            if state.api.lock().unwrap().as_ref().map(|api| &api.id) != Some(&session_id) { break; }
             match guard.as_mut() {
                 Some(c) => match c.try_wait() {
                     Ok(Some(status)) => {
                         *guard = None;
-                        *state.api.lock().unwrap() = None;
+                        clear_api(&app2, &state);
                         drop(guard);
                         crate::system::clear_if_enabled(&app2);
                         release_tun(&app2, &state);
@@ -629,6 +627,12 @@ fn release_tun(app: &AppHandle, state: &State<'_, CoreState>) {
     }
 }
 
+fn clear_api(app: &AppHandle, state: &State<'_, CoreState>) {
+    let mut api = state.api.lock().unwrap();
+    app.state::<crate::controller::Streams>().stop_all();
+    *api = None;
+}
+
 fn core_stop_inner(app: &AppHandle, state: &State<'_, CoreState>) -> bool {
     let via = {
         let mut v = state.via_service.lock().unwrap();
@@ -645,7 +649,7 @@ fn core_stop_inner(app: &AppHandle, state: &State<'_, CoreState>) -> bool {
         let _ = child.wait();
         stopped = true;
     }
-    *state.api.lock().unwrap() = None;
+    clear_api(app, state);
     release_tun(app, state);
     stopped
 }
@@ -672,23 +676,25 @@ pub async fn core_stop(app: AppHandle) -> bool {
     .unwrap_or(false)
 }
 
+/// Service-managed cores have no Child handle in the GUI. Do not mistake a
+/// transient helper IPC failure for an exit and discard a live session.
 #[tauri::command]
-pub fn core_status(state: State<'_, CoreState>) -> CoreStatus {
-    let running = {
-        let mut guard = state.child.lock().unwrap();
-        match guard.as_mut() {
-            Some(c) => matches!(c.try_wait(), Ok(None)),
-            None => false,
-        }
-    };
-    CoreStatus {
-        running,
-        api: if running {
-            state.api.lock().unwrap().clone()
+pub async fn core_status(app: AppHandle) -> Result<CoreStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<CoreState>();
+        let via_service = *state.via_service.lock().unwrap();
+        let running = if via_service {
+            crate::service::core_running_status(&app)
+                .unwrap_or_else(|| state.api.lock().unwrap().is_some())
         } else {
-            None
-        },
-    }
+            let mut guard = state.child.lock().unwrap();
+            guard.as_mut().map(|child| matches!(child.try_wait(), Ok(None))).unwrap_or(false)
+        };
+        CoreStatus {
+            running,
+            api: if running { state.api.lock().unwrap().clone() } else { None },
+        }
+    }).await.map_err(|e| e.to_string())
 }
 
 /// Kill the core when the app exits so no orphan process is left behind.
@@ -696,6 +702,7 @@ pub fn core_status(state: State<'_, CoreState>) -> CoreStatus {
 /// manage the TUN takeover.
 pub fn kill_on_exit(app: &AppHandle) {
     let state = app.state::<CoreState>();
+    clear_api(app, &state);
     if std::mem::take(&mut *state.via_service.lock().unwrap()) {
         crate::service::stop_core(app);
     }

@@ -455,10 +455,7 @@ export default function Overview() {
           ) : null}
           {phase === "running" && api ? (
             <span className="cap2">
-              {t("API 127.0.0.1:{port} · 混合端口 {mixed}", {
-                port: api.port,
-                mixed: api.mixed_port,
-              })}
+              {t("混合端口 {mixed}", { mixed: api.mixed_port })}
             </span>
           ) : null}
         </div>
