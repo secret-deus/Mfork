@@ -335,10 +335,13 @@ mod unix {
         )
         .unwrap();
         assert_eq!(call("GET", "/configs", None).unwrap()["mode"], "global");
+        // the GUI reloads with a payload: in service mode the core's `-d` dir
+        // differs from the config's location and path-based reloads get a 400
+        let reloaded = std::fs::read_to_string(&config).unwrap();
         call(
             "PUT",
             "/configs?force=true",
-            Some(serde_json::json!({"path":config})),
+            Some(serde_json::json!({"payload":reloaded})),
         )
         .unwrap();
         assert_eq!(call("GET", "/configs", None).unwrap()["mode"], "direct");

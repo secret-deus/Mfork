@@ -346,11 +346,21 @@ fn handle(req: &Req, core_bin: &str) -> Resp {
                     .map(std::process::Stdio::from)
                     .unwrap_or_else(|_| std::process::Stdio::null())
             };
+            // The core runs with `-d` in this service's data dir, so its
+            // controller only accepts config paths under that dir. The live
+            // config it was started with lives in the caller's data dir; the
+            // core needs it whitelisted via SAFE_PATHS or every
+            // PUT /configs?force=true reload is rejected with HTTP 400.
+            let safe_paths = cfg
+                .parent()
+                .map(|p| p.to_path_buf())
+                .unwrap_or_else(|| cfg.clone());
             match Command::new(core_bin)
                 .arg("-d")
                 .arg(&dir)
                 .arg("-f")
                 .arg(&cfg)
+                .env("SAFE_PATHS", &safe_paths)
                 .stdout(out("core.log"))
                 .stderr(out("core.err.log"))
                 .spawn()

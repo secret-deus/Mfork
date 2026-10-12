@@ -12,7 +12,7 @@ test('all controller methods use native IPC with an explicit session and structu
   mockIPC((cmd, args) => { calls.push([cmd, args]); return { ok: true }; });
   assert.deepEqual(await apiGet(api, '/proxies/a%2Fb'), { ok: true });
   await apiPatch(api, '/configs', { mode: 'global' });
-  await apiPut(api, '/configs?force=true', { path: '/tmp/test.yaml' });
+  await apiPut(api, '/configs?force=true', { payload: 'mixed-port: 0\n' });
   await apiPost(api, '/cache/fakeip/flush');
   await apiDelete(api, '/connections/test');
   assert.deepEqual(calls.map(([cmd, a]) => [cmd, a.sessionId, a.method]),

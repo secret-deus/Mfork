@@ -360,8 +360,11 @@ pub fn profile_set_interval(app: AppHandle, id: String, hours: u32) -> Result<()
     save_index(&app, &idx)
 }
 
-/// Regenerate the kernel config with current settings; returns the path
-/// for the frontend to hot-reload, or None when the core is not running.
+/// Regenerate the kernel config with current settings; returns the config
+/// *content* for the frontend to hot-reload via `PUT /configs` with a
+/// `payload`, or None when the core is not running. A payload is used
+/// instead of a path because in service mode the core's data dir differs
+/// from ours and its controller rejects paths outside it.
 #[tauri::command]
 pub fn config_regenerate(
     app: AppHandle,
@@ -384,7 +387,9 @@ pub fn config_regenerate(
                 &api.controller,
                 Some(&mode),
             )?;
-            Ok(Some(path.to_string_lossy().to_string()))
+            let content = std::fs::read_to_string(&path)
+                .map_err(|e| format!("read regenerated config {}: {e}", path.display()))?;
+            Ok(Some(content))
         }
         None => Ok(None),
     }

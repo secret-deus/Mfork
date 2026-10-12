@@ -178,9 +178,11 @@ function applyAppearance(s: AppSettings) {
   if (isLocale(s.locale)) useLocale.getState().setLocale(s.locale);
 }
 
-/** Reload a regenerated config in place: connections survive, listeners are re-created as needed. */
-async function hotReload(api: ApiInfo, path: string) {
-  await apiPut(api, "/configs?force=true", { path });
+/** Reload a regenerated config in place: connections survive, listeners are re-created as needed.
+ *  The config is sent as a payload, not a path: in service mode the core's
+ *  data dir is not ours and its controller rejects foreign paths (HTTP 400). */
+async function hotReload(api: ApiInfo, payload: string) {
+  await apiPut(api, "/configs?force=true", { payload });
 }
 
 export const useApp = create<AppState>((set, get) => {
@@ -235,7 +237,7 @@ export const useApp = create<AppState>((set, get) => {
       isCurrent: () => get().api === api && get().phase === "running",
       readMode: async () => (await apiGet<{ mode: unknown }>(api, "/configs")).mode,
       generate: configRegenerate,
-      apply: (path) => hotReload(api, path),
+      apply: (payload) => hotReload(api, payload),
       observed: (mode) => { set({ mode }); void traySync(mode); },
     });
     if (accepted && revision === configRevision) set({ configPending: false });
