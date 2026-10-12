@@ -2,16 +2,18 @@ import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getVersion } from "@tauri-apps/api/app";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { check as checkAppUpdate, Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { useApp } from "../store";
 import {
   AppSettings,
+  AppUpdateInfo,
   BackupEntry,
   CoreRelease,
   CoreVersionInfo,
   ServiceStatus,
   apiPost,
+  appUpdateCheck,
+  appUpdateInstall,
   backupExportLocal,
   backupImportLocal,
   coreCheckUpdate,
@@ -1003,7 +1005,7 @@ function BackupSection() {
 function AboutSection() {
   const t = useT();
   const [appVersion, setAppVersion] = useState("");
-  const [update, setUpdate] = useState<Update | null>(null);
+  const [update, setUpdate] = useState<AppUpdateInfo | null>(null);
   const [busy, setBusy] = useState<"check" | "install" | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const [msg, setMsg] = useState<{ text: string; err?: boolean } | null>(null);
@@ -1011,16 +1013,26 @@ function AboutSection() {
   useEffect(() => {
     void getVersion().then(setAppVersion);
   }, []);
+  useEffect(() => {
+    const un = listen<{ received: number; total: number }>("app-update-progress", (e) => {
+      const { received, total } = e.payload;
+      setProgress(total > 0 ? Math.min(100, Math.round((received / total) * 100)) : null);
+    });
+    return () => {
+      void un.then((f) => f());
+    };
+  }, []);
 
   const doCheck = async () => {
     setBusy("check");
     setMsg(null);
     try {
-      const u = await checkAppUpdate({ timeout: 15000 });
+      const u = await appUpdateCheck();
       if (u) {
         setUpdate(u);
         setMsg({ text: t("发现新版本 {v}", { v: u.version }) });
       } else {
+        setUpdate(null);
         setMsg({ text: t("已是最新版本") });
       }
     } catch (e) {
@@ -1034,16 +1046,8 @@ function AboutSection() {
     if (!update) return;
     setBusy("install");
     setMsg(null);
-    let total = 0;
-    let got = 0;
     try {
-      await update.downloadAndInstall((ev) => {
-        if (ev.event === "Started") total = ev.data.contentLength ?? 0;
-        else if (ev.event === "Progress") {
-          got += ev.data.chunkLength;
-          if (total > 0) setProgress(Math.min(100, Math.round((got / total) * 100)));
-        } else if (ev.event === "Finished") setProgress(100);
-      });
+      await appUpdateInstall();
       setMsg({ text: t("安装完成，正在重启…") });
       await relaunch();
     } catch (e) {

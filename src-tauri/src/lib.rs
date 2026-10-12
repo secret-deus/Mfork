@@ -131,6 +131,10 @@ pub fn run() {
             updater::core_check_update,
             updater::core_upgrade,
             updater::core_revert,
+            #[cfg(desktop)]
+            updater::app_update_check,
+            #[cfg(desktop)]
+            updater::app_update_install,
             backup::backup_export_local,
             backup::backup_import_local,
             backup::webdav_check,

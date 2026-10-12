@@ -48,6 +48,9 @@ jobs:
 
       - name: Fetch mihomo core
         run: node scripts/fetch-core.mjs
+        env:
+          # lifts the shared anonymous 60/h API pool (HTTP 403 on runners)
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Verify bundled Geo data without download access
         run: node tests/geodata-offline-smoke.mjs

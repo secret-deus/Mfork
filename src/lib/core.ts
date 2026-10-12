@@ -139,6 +139,22 @@ export const coreUpgrade = (channel: string) =>
   invoke<UpgradeResult>("core_upgrade", { channel });
 export const coreRevert = () => invoke<void>("core_revert");
 
+// ---- app self-update (OTA, desktop only)
+//
+// Routed through the running core when possible (same policy as the core
+// updater) so the check/download survives networks where GitHub is only
+// reachable through Mfork. Download progress arrives as the
+// "app-update-progress" event ({received, total}; total 0 = unknown).
+
+export interface AppUpdateInfo {
+  version: string;
+  notes: string | null;
+  date: string | null;
+}
+
+export const appUpdateCheck = () => invoke<AppUpdateInfo | null>("app_update_check");
+export const appUpdateInstall = () => invoke<void>("app_update_install");
+
 // ---- backup (M6)
 
 export interface BackupEntry {

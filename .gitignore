@@ -34,3 +34,10 @@ src-tauri/resources/service/
 
 # Locally built installers and checksums
 /releases/
+
+# pnpm content-addressable store (project-local, machine-dependent)
+.pnpm-store/
+
+# agent session artifacts
+.zcode/
+.claude/

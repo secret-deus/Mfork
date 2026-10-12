@@ -1,13 +1,12 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "desktop",
-  "description": "Desktop-only permissions: frameless window controls, app updater, relaunch",
+  "description": "Desktop-only permissions: frameless window controls, relaunch (the app updater runs as Rust commands, not the plugin's JS API)",
   "platforms": ["windows", "macOS", "linux"],
   "windows": [
     "main"
   ],
   "permissions": [
-    "updater:default",
     "process:default",
     "core:window:allow-start-dragging",
     "core:window:allow-minimize",

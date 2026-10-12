@@ -1,7 +1,7 @@
 {
   "name": "mfork",
   "private": true,
-  "version": "0.1.22",
+  "version": "0.1.23",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -24,7 +24,6 @@
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.7.2",
     "@tauri-apps/plugin-process": "^2.3.1",
-    "@tauri-apps/plugin-updater": "^2.11.0",
     "d3-geo": "^3.1.1",
     "dompurify": "3.4.15",
     "monaco-editor": "^0.56.0",

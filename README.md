@@ -76,9 +76,12 @@ CI 在以下 GitHub secrets 存在時自動對 .app/.dmg 簽名並公證，缺�
 
 ## 發佈與自動更新
 
-- 推送 `v*` tag 觸發 CI（`tauri-apps/tauri-action`）：全平台打包、簽名 updater 產物並建立 GitHub Release **草稿**（含 `latest.json`），手動 publish 後應用內「檢查更新」即可看到。
-- 倉庫 Secrets 需設置 `TAURI_SIGNING_PRIVATE_KEY`（本機 `~/.tauri/mfork.key` 的內容；公鑰已寫在 `src-tauri/tauri.conf.json`）。私鑰丟失則之後的版本無法被舊版本驗證，務必備份。
-- 更新源 endpoint 在 `tauri.conf.json → plugins.updater.endpoints`，目前指向 GitHub `secret-deus/Mfork`，換倉庫時同步修改。
+- 版本發佈一鍵化：`node scripts/release.mjs <x.y.z>` 統一 bump `package.json` / `tauri.conf.json` / 兩個 `Cargo.toml`（含 `Cargo.lock` 自身條目）並生成 `docs/releases/<v>.md` 骨架；補寫 release note 後 commit、打 tag、推送。
+- Git 雙源：`origin` 為 Gitea（源碼主倉），`github` 為 [secret-deus/Mfork](https://github.com/secret-deus/Mfork)（公開，承擔 Actions 構建與 Releases 下載）。推送 `v*` tag 到 `github` 觸發 `build.yml`（`tauri-apps/tauri-action`）：全平台打包、簽名 updater 產物並建立 GitHub Release **草稿**（含 `latest.json`），手動 publish 後應用內「檢查更新」即可看到；`build-ubuntu-deb.yml` 同時產出 Ubuntu 26.04 deb（僅 artifact，需手動發佈）。
+- 倉庫 Secrets 需設置 `TAURI_SIGNING_PRIVATE_KEY`（本機 `~/.tauri/mfork.key` 的內容；公鑰已寫在 `src-tauri/tauri.conf.json`）與 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`（無密碼時設為空）。私鑰丟失則之後的版本無法被舊版本驗證，務必備份。
+- CI 中 `fetch-core.mjs` 依賴 `GITHUB_TOKEN` 提升 GitHub API 限流額度（匿名共享池在 runner 上常 403），三個 workflow 已注入。
+- 更新源 endpoint 在 `tauri.conf.json → plugins.updater.endpoints`：GitHub 直連優先，`gh-proxy.com` 鏡像後備；應用更新走 Rust 命令（`app_update_check` / `app_update_install`），內核運行時優先經 mixed-port 代理、失敗轉直連（與內核自升級同一路由策略），下載進度經 `app-update-progress` 事件反饋。
+- 平台差異：Windows（NSIS）、macOS（.app/.dmg，未配 Apple 證書時未簽名，更新後首次打開需右鍵「打開」）、Linux **AppImage** 支持應用內自動更新；**deb / rpm 安裝的實例無法應用內自更新**（Tauri 平台限制），需手動下載新包覆蓋——自用機器建議改用 AppImage 獲得 OTA。
 
 ## 架構速覽
 

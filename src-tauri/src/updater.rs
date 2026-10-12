@@ -1,6 +1,9 @@
-//! mihomo core self-upgrade from the official GitHub releases (stable /
-//! alpha channels). An upgraded binary lives in `<app-data>/core-bin/` and
-//! takes precedence over the bundled one; reverting just deletes it.
+//! Two updaters live here. The mihomo core self-upgrade pulls from the
+//! official GitHub releases (stable / alpha channels); an upgraded binary
+//! lives in `<app-data>/core-bin/` and takes precedence over the bundled
+//! one; reverting just deletes it. The app self-update (desktop) drives
+//! tauri-plugin-updater through the same via-core-then-direct routing so
+//! both survive networks where GitHub is only reachable through Mfork.
 
 use serde::Serialize;
 use std::io::{Read, Write};
@@ -461,6 +464,108 @@ fn extract_zip(buf: &[u8]) -> Result<Vec<u8>, String> {
     }
     Err("zip 内未找到内核可执行文件".into())
 }
+
+// ---- app self-update --------------------------------------------------
+// The in-app updater routes through the running core when possible, with
+// the same policy as the core updater above: the active profile may have
+// no usable node and GitHub may be reachable either way depending on the
+// network. A checked update is parked in PENDING_APP_UPDATE so the install
+// command can continue it; the chosen proxy and timeout travel with it.
+
+#[cfg(desktop)]
+static PENDING_APP_UPDATE: std::sync::Mutex<Option<tauri_plugin_updater::Update>> =
+    std::sync::Mutex::new(None);
+
+#[cfg(desktop)]
+#[derive(Serialize)]
+pub struct AppUpdateInfo {
+    pub version: String,
+    pub notes: Option<String>,
+    pub date: Option<String>,
+}
+
+#[cfg(desktop)]
+#[tauri::command]
+pub async fn app_update_check(app: AppHandle) -> Result<Option<AppUpdateInfo>, String> {
+    use tauri_plugin_updater::UpdaterExt;
+
+    // resolve routes and the mixed port before any await: the state lock
+    // guard must not be held across the async check
+    let port = app
+        .state::<CoreState>()
+        .api
+        .lock()
+        .unwrap()
+        .as_ref()
+        .map(|a| a.mixed_port);
+    let mut last_err: Option<String> = None;
+    for via_core in routes(&app) {
+        let mut builder = app.updater_builder().timeout(Duration::from_secs(20));
+        if via_core {
+            let Some(port) = port else { continue };
+            let proxy = reqwest::Url::parse(&format!("http://127.0.0.1:{port}"))
+                .map_err(|e| e.to_string())?;
+            builder = builder.proxy(proxy);
+        } else {
+            builder = builder.no_proxy();
+        }
+        let updater = match builder.build() {
+            Ok(u) => u,
+            Err(e) => {
+                last_err = Some(e.to_string());
+                continue;
+            }
+        };
+        match updater.check().await {
+            Ok(Some(update)) => {
+                let info = AppUpdateInfo {
+                    version: update.version.clone(),
+                    notes: update.body.clone(),
+                    date: update.date.map(|d| d.date().to_string()),
+                };
+                *PENDING_APP_UPDATE.lock().unwrap() = Some(update);
+                return Ok(Some(info));
+            }
+            Ok(None) => {
+                *PENDING_APP_UPDATE.lock().unwrap() = None;
+                return Ok(None);
+            }
+            Err(e) => last_err = Some(e.to_string()),
+        }
+    }
+    Err(last_err.unwrap_or_else(|| "应用更新检查：无可用路由".into()))
+}
+
+#[cfg(desktop)]
+#[tauri::command]
+pub async fn app_update_install(app: AppHandle) -> Result<(), String> {
+    let mut update = PENDING_APP_UPDATE
+        .lock()
+        .unwrap()
+        .take()
+        .ok_or("没有待安装的应用更新，请先检查更新")?;
+    // installs are large and the route may be a slow proxy: the 20 s check
+    // timeout carried over from app_update_check would abort the transfer
+    update.timeout = Some(Duration::from_secs(900));
+    let mut received: usize = 0;
+    update
+        .download_and_install(
+            |chunk, total| {
+                received += chunk;
+                let _ = app.emit(
+                    "app-update-progress",
+                    Progress {
+                        received: received as u64,
+                        total: total.unwrap_or(0),
+                    },
+                );
+            },
+            || {},
+        )
+        .await
+        .map_err(|e| e.to_string())
+}
+
 
 #[cfg(test)]
 mod tests {

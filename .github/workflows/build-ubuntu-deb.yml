@@ -36,6 +36,10 @@ jobs:
           sudo apt-get install -y build-essential pkg-config libssl-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
       - name: Build deb with bundled Geo data
         run: bash scripts/build-deb.sh
+        env:
+          # fetch-core.mjs inside the script hits the GitHub API; a token
+          # lifts the shared anonymous 60/h pool (HTTP 403 on runners)
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Upload deb and checksums
         uses: actions/upload-artifact@v4
         with:

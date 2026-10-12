@@ -35,8 +35,15 @@ const ext = os === "windows" ? "zip" : "gz";
 const assetArch = android && arch === "arm64" ? "arm64-v8" : arch;
 const assetRe = new RegExp(`^mihomo-${os}-${assetArch}-v[\\d.]+\\.${ext}$`);
 
+// Anonymous GitHub API calls from CI runners share a 60/h rate-limit pool
+// and get HTTP 403; a token (GH_TOKEN/GITHUB_TOKEN, auto-available in
+// Actions) lifts it to 5000/h.
+const ghToken = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
 const gh = android ? null : await fetch("https://api.github.com/repos/MetaCubeX/mihomo/releases/latest", {
-  headers: { "user-agent": "mfork-build" },
+  headers: {
+    "user-agent": "mfork-build",
+    ...(ghToken ? { authorization: `Bearer ${ghToken}` } : {}),
+  },
 });
 if (gh && !gh.ok) throw new Error(`GitHub API: HTTP ${gh.status}`);
 const release = gh ? await gh.json() : null;
